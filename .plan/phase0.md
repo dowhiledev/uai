@@ -47,9 +47,7 @@ This document outlines all considerations, decisions, and best practices for sca
 - Document how to run examples and tests
 
 ## 7. Documentation Planning
-- Decide on documentation generator (e.g., mkdocs, Sphinx)
-- Plan for API reference, usage guides, and extensibility docs
-- Structure docs for incremental updates as new adapters are added
+*Documentation planning will be addressed in a later phase. Skip for now.*
 
 ## 8. Licensing & Compliance
 - Choose a permissive license (e.g., MIT, Apache-2.0) and include in root
@@ -73,11 +71,11 @@ This document outlines all considerations, decisions, and best practices for sca
 - [x] README.md drafted
 - [x] .gitignore and version control set up
 - [x] Initial tests and CI configured
-- [ ] Example scripts added
-- [ ] Documentation plan outlined
+- [x] Example scripts added
 - [x] License included
-- [ ] Plugin registry scaffolded
-- [ ] Milestones validated
+- [x] Plugin registry scaffolded
+- [x] Milestones validated
+- [ ] Documentation plan outlined (skipped for this phase)
 
 ---
 
