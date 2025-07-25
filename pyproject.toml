@@ -28,3 +28,9 @@ dev = [
     "pytest-cov>=6.2.1",
     "pytest-xdist>=3.8.0",
 ]
+
+[project.entry-points]
+"unified_agent_interface.adapters" = {}
+
+# Example for future adapter registration:
+# "unified_agent_interface.adapters" = { my_adapter = "my_package.module:AdapterClass" }

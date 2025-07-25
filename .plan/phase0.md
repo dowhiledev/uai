@@ -19,8 +19,10 @@ This document outlines all considerations, decisions, and best practices for sca
 - Use PEP 621-compliant `pyproject.toml` for build system and metadata
 - Specify dependencies (e.g., CrewAI, LangChain, FastAPI, etc.) as extras or optional
 - Set up project name, description, authors, license, and versioning
-- Configure entry points for plugin registry (`uai.adapters`)
-- Add build-backend (e.g., setuptools, hatchling, poetry)
+- Configure entry points for plugin registry (update to match package name)
+- Use `hatchling` as build-backend (see pyproject.toml)
+- Use `uv` for dependency management and installation
+- Package name is `unified-agent-interface` (not `uai`)
 
 ## 3. README.md
 - Clearly state project purpose, scope, and usage
@@ -66,14 +68,14 @@ This document outlines all considerations, decisions, and best practices for sca
 ---
 
 ## Checklist
-- [ ] Directory structure created
-- [ ] pyproject.toml written
-- [ ] README.md drafted
-- [ ] .gitignore and version control set up
-- [ ] Initial tests and CI configured
+- [x] Directory structure created
+- [x] pyproject.toml written
+- [x] README.md drafted
+- [x] .gitignore and version control set up
+- [x] Initial tests and CI configured
 - [ ] Example scripts added
 - [ ] Documentation plan outlined
-- [ ] License included
+- [x] License included
 - [ ] Plugin registry scaffolded
 - [ ] Milestones validated
 
@@ -83,3 +85,5 @@ This document outlines all considerations, decisions, and best practices for sca
 - Keep the initial commit minimal and focused on structure
 - Avoid adding framework-specific code until abstractions are ready
 - Use this document to guide and review the initial repo setup
+- Dependency management is handled via `uv` (see https://github.com/astral-sh/uv)
+- Package name is `unified-agent-interface` throughout all configs and docs
