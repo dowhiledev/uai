@@ -1,17 +1,30 @@
 [project]
 name = "unified-agent-interface"
 version = "0.1.0"
-description = "Add your description here"
+description =  "Unified Agent Interface: Thin wrapper for Python agent frameworks."
 readme = "README.md"
 authors = [
     { name = "chandralegend", email = "irugalbandarachandra@gmail.com" }
 ]
 requires-python = ">=3.10"
-dependencies = []
+license = { file = "LICENSE" }
+dependencies = [
+    "fastapi>=0.116.1",
+    "pydantic>=2.11.7",
+    "uvicorn>=0.35.0",
+]
 
-[project.scripts]
-unified-agent-interface = "unified_agent_interface:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "crewai>=0.150.0",
+    "langchain>=0.3.27",
+    "nomos>=0.3.5",
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+    "pytest-xdist>=3.8.0",
+]
