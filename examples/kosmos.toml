@@ -1,0 +1,3 @@
+[agent]
+runtime = "python/crewai"
+entrypoint = "crewai_example:crew"

@@ -1,1 +1,2 @@
-# Unified Agent Interface (UAI) package
+def main() -> None:
+    print("Hello from unified-agent-interface!")
