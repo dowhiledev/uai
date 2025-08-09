@@ -27,6 +27,12 @@ def get_agent() -> Agent:
     return EchoAgent()
 
 
+@router.post("/next", response_model=NextResponse)
+def next_step(payload: NextRequest, agent: Agent = Depends(get_agent)) -> NextResponse:
+    state, artifacts, reply = agent.respond(payload.state or {}, payload.user_input or "")
+    return NextResponse(state=state, artifacts=artifacts)
+
+
 @router.post("/", response_model=CreateChatResponse)
 def create_chat(storage: Storage = Depends(get_storage)) -> CreateChatResponse:
     session = storage.create_chat()
@@ -95,10 +101,4 @@ def get_artifact(
     if art is None:
         raise HTTPException(status_code=404, detail="Artifact not found")
     return art
-
-
-@router.post("/next", response_model=NextResponse)
-def next_step(payload: NextRequest, agent: Agent = Depends(get_agent)) -> NextResponse:
-    state, artifacts, reply = agent.respond(payload.state or {}, payload.user_input or "")
-    return NextResponse(state=state, artifacts=artifacts)
 
