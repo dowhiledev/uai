@@ -2,8 +2,10 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+from fastapi import Query
+
 from ..components.agents.base import Agent
-from ..components.agents.echo import EchoAgent
+from ..components.agents.registry import get_chat_agent
 from ..components.storage.base import Storage
 from ..models.chat import (
     Artifact,
@@ -22,9 +24,8 @@ def get_storage(req: Request) -> Storage:
     return req.app.state.storage
 
 
-def get_agent() -> Agent:
-    # Placeholder agent; swap with framework-specific adapters
-    return EchoAgent()
+def get_agent(agent: str = Query(default="echo", description="Chat agent id")) -> Agent:
+    return get_chat_agent(agent)
 
 
 @router.post("/next", response_model=NextResponse)
@@ -101,4 +102,3 @@ def get_artifact(
     if art is None:
         raise HTTPException(status_code=404, detail="Artifact not found")
     return art
-

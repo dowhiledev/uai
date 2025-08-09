@@ -55,15 +55,12 @@ class InMemoryStorage:
         tid = str(uuid.uuid4())
         task = RunTask(
             id=tid,
-            status="running",
-            estimated_completion_time=datetime.utcnow() + timedelta(seconds=5),
-            params=params,
+            status="pending",
+            estimated_completion_time=None,
+            params=dict(params or {}),
         )
         if initial_input:
             task.input_buffer.append(initial_input)
-        # For demo, mark as completed quickly with echo result
-        task.result_text = (initial_input or "").strip()
-        task.status = "completed"
         self._runs[tid] = task
         return task
 
@@ -94,4 +91,3 @@ class InMemoryStorage:
             if art.id == artifact_id:
                 return art
         return None
-

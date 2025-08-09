@@ -10,6 +10,7 @@ from ..models.run import (
     RunArtifact,
     RunStatusResponse,
 )
+from ..components.agents.registry import get_run_agent
 
 
 router = APIRouter()
@@ -21,7 +22,12 @@ def get_storage(req: Request) -> Storage:
 
 @router.post("/", response_model=CreateRunResponse)
 def create_run(payload: CreateRunRequest | None = None, storage: Storage = Depends(get_storage)):
-    task = storage.create_run(initial_input=payload.input if payload else None, params=(payload.params if payload else None) or {})
+    params = (payload.params if payload else None) or {}
+    agent_name = params.get("agent", "run_simple")
+    task = storage.create_run(initial_input=payload.input if payload else None, params=params)
+    # Let agent initialize the task lifecycle
+    agent = get_run_agent(agent_name)
+    agent.on_create(task, payload.input if payload else None)
     return CreateRunResponse(task_id=task.id, estimated_completion_time=task.estimated_completion_time)
 
 
@@ -30,6 +36,9 @@ def get_run_status(task_id: str, storage: Storage = Depends(get_storage)) -> Run
     task = storage.get_run(task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
+    # Advance task by agent rules
+    agent = get_run_agent(task.params.get("agent", "run_simple"))
+    agent.on_status(task)
     return RunStatusResponse(**task.model_dump())
 
 
@@ -47,6 +56,8 @@ def provide_input(task_id: str, payload: CreateRunRequest, storage: Storage = De
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
     storage.append_run_input(task_id, payload.input or "")
+    agent = get_run_agent(task.params.get("agent", "run_simple"))
+    agent.on_input(task, payload.input or "")
     return {"ok": True}
 
 
@@ -73,4 +84,3 @@ def send_logs(task_id: str, payload: LogEntry, storage: Storage = Depends(get_st
         raise HTTPException(status_code=404, detail="Task not found")
     storage.append_run_log(task_id, payload)
     return {"ok": True}
-
