@@ -7,7 +7,10 @@ authors = [
     { name = "chandralegend", email = "irugalbandarachandra@gmail.com" }
 ]
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "fastapi>=0.116.1",
+    "uvicorn>=0.35.0",
+]
 
 [project.scripts]
 uai = "unified_agent_interface:cli"
