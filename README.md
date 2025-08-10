@@ -19,14 +19,21 @@ Structure
 Notes
 -----
 - Storage is in-memory for now; swap with Postgres/Redis-backed implementations later.
-- Agent is a simple echo stub; replace with framework-specific adapters.
+- Agents are configured via `kosmos.toml` using an adapter per framework.
 - Endpoints map to those defined in `idea.md` and are ready for expansion.
 
-CrewAI Integration
+Agent Configuration
 ------------------
-- A `crewai` run agent adapter is provided to wrap an existing CrewAI `Crew`.
-- Usage example:
-  - `POST /run/` with body:
-    `{ "params": { "agent": "crewai", "crewai_module": "examples.crewai_example", "crewai_inputs": { "topic": "AI trends" } } }`
-- The adapter lazily imports the module specified by `crewai_module`, expects it to expose a `crew` instance, and calls `crew.kickoff(inputs=...)` in a background thread.
-- If CrewAI is not installed or the module import fails, the task will transition to `failed` with an error message in `result_text`.
+- Place a `kosmos.toml` at project root (or set `KOSMOS_TOML` env var). Example:
+
+  ```toml
+  [agent]
+  runtime = "callable"          # or "crewai"
+  entrypoint = "examples.simple_entrypoint:run"
+  ```
+
+- Supported runtimes:
+  - "callable": imports `module:attr` and calls it with `{ input, params }`, storing return value in `result_text`.
+  - "crewai": imports `module:attr` as a Crew and calls `crew.kickoff(inputs={ topic: <input> })` in a background thread.
+
+- The app loads this config on startup and uses it for all `/run` requests.

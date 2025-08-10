@@ -5,53 +5,31 @@ import time
 from fastapi.testclient import TestClient
 
 
-def test_run_simple_completes(client: TestClient):
-    # Create simple run
-    res = client.post('/run/', json={'input': 'process this', 'params': {'agent': 'run_simple'}})
+def test_configured_callable_run_completes(client: TestClient):
+    # Create run; agent is selected via kosmos.toml (callable runtime)
+    res = client.post('/run/', json={'input': 'process this'})
     assert res.status_code == 200
     task_id = res.json()['task_id']
 
     # Poll until completed (bounded wait)
     status = None
-    for _ in range(6):
+    result_text = None
+    for _ in range(10):
         r = client.get(f'/run/{task_id}')
         assert r.status_code == 200
-        status = r.json()['status']
+        body = r.json()
+        status = body['status']
         if status == 'completed':
+            result_text = body.get('result_text')
             break
-        time.sleep(1)
+        time.sleep(0.2)
     assert status == 'completed'
-
-
-def test_run_input_required_flow(client: TestClient):
-    # Create run that waits for input
-    res = client.post('/run/', json={'params': {'agent': 'run_input_required'}})
-    assert res.status_code == 200
-    task_id = res.json()['task_id']
-
-    # Initially waiting for input
-    r = client.get(f'/run/{task_id}')
-    assert r.status_code == 200
-    assert r.json()['status'] == 'waiting_input'
-
-    # Provide input and ensure it transitions to running → completed
-    r = client.post(f'/run/{task_id}/input', json={'input': 'user decision'})
-    assert r.status_code == 200
-
-    status = None
-    for _ in range(6):
-        r = client.get(f'/run/{task_id}')
-        assert r.status_code == 200
-        status = r.json()['status']
-        if status == 'completed':
-            break
-        time.sleep(1)
-    assert status == 'completed'
+    assert isinstance(result_text, str) and result_text.startswith('processed:')
 
 
 def test_run_logs_append(client: TestClient):
-    # Create simple run, then append a log entry
-    res = client.post('/run/', json={'params': {'agent': 'run_simple'}})
+    # Create run, then append a log entry
+    res = client.post('/run/', json={})
     assert res.status_code == 200
     task_id = res.json()['task_id']
 
@@ -65,4 +43,3 @@ def test_run_logs_append(client: TestClient):
     data = r.json()
     assert isinstance(data.get('logs'), list)
     assert any(log.get('message') == 'starting' for log in data['logs'])
-

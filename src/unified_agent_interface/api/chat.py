@@ -2,10 +2,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from fastapi import Query
-
 from ..components.agents.base import Agent
-from ..components.agents.registry import get_chat_agent
 from ..components.storage.base import Storage
 from ..models.chat import (
     Artifact,
@@ -24,8 +21,14 @@ def get_storage(req: Request) -> Storage:
     return req.app.state.storage
 
 
-def get_agent(agent: str = Query(default="echo", description="Chat agent id")) -> Agent:
-    return get_chat_agent(agent)
+def get_agent() -> Agent:
+    # Chat agent loading via kosmos is not implemented yet.
+    # Placeholder to keep API surface; returns 501 on use.
+    class _NotImplementedAgent:
+        def respond(self, state: dict, user_input: str):
+            raise HTTPException(status_code=501, detail="Chat agents are not configured")
+
+    return _NotImplementedAgent()  # type: ignore[return-value]
 
 
 @router.post("/next", response_model=NextResponse)

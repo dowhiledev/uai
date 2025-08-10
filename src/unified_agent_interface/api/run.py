@@ -10,7 +10,7 @@ from ..models.run import (
     RunArtifact,
     RunStatusResponse,
 )
-from ..components.agents.registry import get_run_agent
+from fastapi import Query
 
 
 router = APIRouter()
@@ -21,23 +21,22 @@ def get_storage(req: Request) -> Storage:
 
 
 @router.post("/", response_model=CreateRunResponse)
-def create_run(payload: CreateRunRequest | None = None, storage: Storage = Depends(get_storage)):
+def create_run(payload: CreateRunRequest | None = None, storage: Storage = Depends(get_storage), req: Request = None):
     params = (payload.params if payload else None) or {}
-    agent_name = params.get("agent", "run_simple")
     task = storage.create_run(initial_input=payload.input if payload else None, params=params)
-    # Let agent initialize the task lifecycle
-    agent = get_run_agent(agent_name)
+    # Use configured run agent (from kosmos.toml)
+    agent = req.app.state.run_agent  # type: ignore[attr-defined]
     agent.on_create(task, payload.input if payload else None)
     return CreateRunResponse(task_id=task.id, estimated_completion_time=task.estimated_completion_time)
 
 
 @router.get("/{task_id}", response_model=RunStatusResponse)
-def get_run_status(task_id: str, storage: Storage = Depends(get_storage)) -> RunStatusResponse:
+def get_run_status(task_id: str, storage: Storage = Depends(get_storage), req: Request = None) -> RunStatusResponse:
     task = storage.get_run(task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
-    # Advance task by agent rules
-    agent = get_run_agent(task.params.get("agent", "run_simple"))
+    # Advance task by configured agent rules
+    agent = req.app.state.run_agent  # type: ignore[attr-defined]
     agent.on_status(task)
     return RunStatusResponse(**task.model_dump())
 
@@ -51,12 +50,12 @@ def cancel_run(task_id: str, storage: Storage = Depends(get_storage)):
 
 
 @router.post("/{task_id}/input")
-def provide_input(task_id: str, payload: CreateRunRequest, storage: Storage = Depends(get_storage)):
+def provide_input(task_id: str, payload: CreateRunRequest, storage: Storage = Depends(get_storage), req: Request = None):
     task = storage.get_run(task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
     storage.append_run_input(task_id, payload.input or "")
-    agent = get_run_agent(task.params.get("agent", "run_simple"))
+    agent = req.app.state.run_agent  # type: ignore[attr-defined]
     agent.on_input(task, payload.input or "")
     return {"ok": True}
 
