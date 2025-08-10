@@ -21,3 +21,12 @@ Notes
 - Storage is in-memory for now; swap with Postgres/Redis-backed implementations later.
 - Agent is a simple echo stub; replace with framework-specific adapters.
 - Endpoints map to those defined in `idea.md` and are ready for expansion.
+
+CrewAI Integration
+------------------
+- A `crewai` run agent adapter is provided to wrap an existing CrewAI `Crew`.
+- Usage example:
+  - `POST /run/` with body:
+    `{ "params": { "agent": "crewai", "crewai_module": "examples.crewai_example", "crewai_inputs": { "topic": "AI trends" } } }`
+- The adapter lazily imports the module specified by `crewai_module`, expects it to expose a `crew` instance, and calls `crew.kickoff(inputs=...)` in a background thread.
+- If CrewAI is not installed or the module import fails, the task will transition to `failed` with an error message in `result_text`.
