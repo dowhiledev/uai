@@ -1,7 +1,28 @@
-from crewai import Agent, Task, Crew, Process
-from langchain_community.tools import DuckDuckGoSearchRun
+from dotenv import load_dotenv
 
-search_tool = DuckDuckGoSearchRun()
+load_dotenv()
+
+from crewai import Agent, Task, Crew, Process
+from typing import Type
+from crewai.tools import BaseTool
+from pydantic import BaseModel, Field
+from langchain_community.tools import DuckDuckGoSearchResults
+
+class MyCustomDuckDuckGoToolInput(BaseModel):
+    """Input schema for MyCustomDuckDuckGoTool."""
+    query: str = Field(..., description="URL to search for.")
+
+class MyCustomDuckDuckGoTool(BaseTool):
+    name: str = "DuckDuckGo Search Tool"
+    description: str = "Search the web for a given query."
+    args_schema: Type[BaseModel] = MyCustomDuckDuckGoToolInput
+
+    def _run(self, query: str) -> str:
+        duckduckgo_tool = DuckDuckGoSearchResults()
+        response = duckduckgo_tool.invoke(query)
+        return response
+
+search_tool = MyCustomDuckDuckGoTool()
 
 # Define Agents
 researcher = Agent(

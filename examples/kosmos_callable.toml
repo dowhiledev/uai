@@ -1,0 +1,4 @@
+[agent]
+runtime = "callable"
+entrypoint = "examples.simple_entrypoint:run"
+
