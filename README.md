@@ -17,6 +17,7 @@ CLI Overview
 - `uai run input <task_id> --text '<reply>'`: provides human input to a waiting run.
 - `uai run logs <task_id> --message '<msg>' [--level INFO]`: appends a log entry.
 - `uai worker install|check|start`: installs schema, checks DB, and starts the worker.
+ - `uai run watch <task_id>`: watches status; when `waiting_input`, prompts for input and resumes automatically.
 
 Project Structure
 -----------------

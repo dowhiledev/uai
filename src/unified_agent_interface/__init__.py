@@ -109,6 +109,49 @@ def cli() -> None:  # pragma: no cover
         data = _http_post(url, f"/run/{task_id}/logs", {"level": level, "message": message})
         _print(data)
 
+    @run_app.command("watch")
+    def run_watch(
+        task_id: str = typer.Argument(..., help="Task ID"),
+        url: str = typer.Option("http://localhost:8000", "--url", help="Base server URL"),
+        interval: float = typer.Option(1.0, "--interval", help="Polling interval seconds"),
+        verbose: bool = typer.Option(True, "--verbose/--quiet", help="Print status changes"),
+    ) -> None:
+        """Watch a run, prompting for input when required, until completion."""
+        import time as _time
+
+        _load_dotenv_if_present()
+        prev_status = None
+        prev_len = None
+        try:
+            while True:
+                data = _http_get(url, f"/run/{task_id}")
+                status = data.get("status")
+                ibuf = data.get("input_buffer") or []
+                prompt = data.get("input_prompt") or None
+
+                if verbose and (status != prev_status or (isinstance(ibuf, list) and prev_len is not None and len(ibuf) != prev_len)):
+                    typer.echo(f"status={status} inputs={len(ibuf) if isinstance(ibuf, list) else 0}")
+                    if prompt and status == "waiting_input":
+                        typer.echo(f"input_prompt: {prompt}")
+                prev_status = status
+                prev_len = len(ibuf) if isinstance(ibuf, list) else prev_len
+
+                if status in ("completed", "failed", "cancelled"):
+                    _print(data)
+                    break
+                if status == "waiting_input":
+                    ask = prompt or "Awaiting human input..."
+                    text = typer.prompt(ask)
+                    if text.strip() == "":
+                        typer.echo("Empty input, not sending. Press Ctrl+C to exit.")
+                    else:
+                        _http_post(url, f"/run/{task_id}/input", {"input": text})
+                    # Continue immediately to re-check status
+                    continue
+                _time.sleep(max(0.1, interval))
+        except KeyboardInterrupt:
+            typer.echo("Interrupted")
+
     @chat_app.command("create")
     def chat_create(
         url: str = typer.Option("http://localhost:8000", "--url", help="Base server URL"),
