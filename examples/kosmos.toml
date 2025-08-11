@@ -1,3 +1,0 @@
-[agent]
-runtime = "crewai"
-entrypoint = "crewai_example:crew"

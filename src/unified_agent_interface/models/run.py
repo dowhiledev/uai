@@ -26,6 +26,7 @@ class RunTask(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     estimated_completion_time: Optional[datetime] = None
     result_text: Optional[str] = None
+    input_prompt: Optional[str] = None
     artifacts: List[RunArtifact] = Field(default_factory=list)
     logs: List[LogEntry] = Field(default_factory=list)
     input_buffer: List[str] = Field(default_factory=list)
@@ -50,4 +51,5 @@ class RunStatusResponse(BaseModel):
     result_text: Optional[str] = None
     artifacts: List[RunArtifact]
     logs: List[LogEntry]
-
+    input_prompt: Optional[str] = None
+    input_buffer: List[str] = Field(default_factory=list)

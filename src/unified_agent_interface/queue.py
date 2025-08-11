@@ -63,8 +63,59 @@ def get_procrastinate_app():  # pragma: no cover - thin wrapper
 
             obj, _, _ = import_entrypoint(entrypoint, base_dir=config_dir)
             if runtime.lower() == "crewai":
-                inputs = {"topic": (initial_input or "").strip()}
-                result_text = str(obj.kickoff(inputs=inputs))
+                import builtins
+                import time as _time
+                import httpx as _httpx
+
+                # Track how many inputs have been consumed
+                input_index = 0
+
+                real_input = getattr(builtins, "input")
+
+                def _wait_and_get_input(prompt: str = "") -> str:
+                    nonlocal input_index
+                    base_url = os.getenv("UAI_BASE_URL", "http://localhost:8000").rstrip("/")
+                    # Ensure a meaningful prompt
+                    prompt = prompt or "Awaiting human input..."
+                    # Initialize baseline to skip any existing inputs (e.g., initial topic)
+                    try:
+                        r0 = _httpx.get(f"{base_url}/run/{task_id}", timeout=10)
+                        if r0.status_code == 200:
+                            d0 = r0.json()
+                            buf0 = d0.get("input_buffer") or []
+                            if isinstance(buf0, list):
+                                input_index = len(buf0)
+                    except Exception:
+                        pass
+                    # Notify server we're waiting
+                    try:
+                        _httpx.post(f"{base_url}/run/{task_id}/wait", json={"prompt": prompt}, timeout=30)
+                    except Exception:
+                        pass
+
+                    # Poll until new input is provided
+                    for _ in range(600):  # up to ~5 minutes
+                        try:
+                            r = _httpx.get(f"{base_url}/run/{task_id}", timeout=10)
+                            if r.status_code == 200:
+                                data = r.json()
+                                buf = data.get("input_buffer") or []
+                                if isinstance(buf, list) and len(buf) > input_index:
+                                    value = str(buf[input_index])
+                                    input_index += 1
+                                    return value
+                        except Exception:
+                            pass
+                        _time.sleep(0.5)
+                    # Timeout fallback
+                    return ""
+
+                try:
+                    builtins.input = _wait_and_get_input  # type: ignore[assignment]
+                    inputs = {"topic": (initial_input or "").strip()}
+                    result_text = str(obj.kickoff(inputs=inputs))
+                finally:
+                    builtins.input = real_input  # type: ignore[assignment]
             elif runtime.lower() == "callable":
                 if not callable(obj):
                     raise TypeError("entrypoint is not callable")
@@ -74,8 +125,9 @@ def get_procrastinate_app():  # pragma: no cover - thin wrapper
             else:
                 raise ValueError(f"Unsupported runtime: {runtime}")
         except Exception as e:  # pragma: no cover - integration error path
+            import traceback as _tb
             status = "failed"
-            result_text = f"Error: {e}"
+            result_text = f"Error: {e}\n" + _tb.format_exc()
 
         # Notify server via callback
         base_url = os.getenv("UAI_BASE_URL", "http://localhost:8000").rstrip("/")

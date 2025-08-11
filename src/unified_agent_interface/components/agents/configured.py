@@ -56,4 +56,5 @@ class ConfiguredRunAgent(RunAgent):
             task.estimated_completion_time = None
 
     def on_input(self, task: RunTask, text: str) -> None:
-        task.input_buffer.append(text)
+        # No-op: server already appended input to buffer; worker polls it.
+        return

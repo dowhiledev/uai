@@ -69,16 +69,37 @@ def import_entrypoint(entrypoint: str, base_dir: Optional[str] = None) -> Tuple[
     if ':' not in entrypoint:
         raise ValueError("entrypoint must be in 'module:attr' format")
     mod_name, attr_path = entrypoint.split(':', 1)
-    try:
-        mod = importlib.import_module(mod_name)
-    except ModuleNotFoundError:
+    mod = None
+    # Prefer package import if base_dir is a package
+    if base_dir and (Path(base_dir) / "__init__.py").exists() and "." not in mod_name:
+        import sys
+        package_name = Path(base_dir).name
+        sys.path.insert(0, str(Path(base_dir).parent))
+        try:
+            try:
+                mod = importlib.import_module(f"{package_name}.{mod_name}")
+            except ModuleNotFoundError:
+                mod = None
+        finally:
+            try:
+                sys.path.remove(str(Path(base_dir).parent))
+            except ValueError:
+                pass
+
+    if mod is None:
+        # Try normal import
+        try:
+            mod = importlib.import_module(mod_name)
+        except ModuleNotFoundError:
+            mod = None
+
+    if mod is None:
         # Try file-based import relative to base_dir, then CWD
         from importlib.util import spec_from_file_location, module_from_spec
         paths = []
         if base_dir:
             paths.append(Path(base_dir) / (mod_name.replace('.', os.sep) + '.py'))
         paths.append(Path(mod_name.replace('.', os.sep) + '.py'))
-        mod = None
         for candidate in paths:
             if candidate.exists():
                 spec = spec_from_file_location(mod_name, candidate)
@@ -87,8 +108,8 @@ def import_entrypoint(entrypoint: str, base_dir: Optional[str] = None) -> Tuple[
                     spec.loader.exec_module(m)  # type: ignore[attr-defined]
                     mod = m
                     break
-        if mod is None:
-            raise
+    if mod is None:
+        raise ModuleNotFoundError(f"Could not import '{mod_name}' from entrypoint '{entrypoint}'")
     obj = mod
     for part in attr_path.split('.'):
         obj = getattr(obj, part)

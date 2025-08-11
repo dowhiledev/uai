@@ -33,7 +33,7 @@ def test_crewai_example_completes():
     from unified_agent_interface.app import get_app
 
     # Point to CrewAI kosmos file
-    with _temp_env(KOSMOS_TOML=os.path.join('examples', 'kosmos.toml')):
+    with _temp_env(KOSMOS_TOML=os.path.join('examples', 'crewai', 'kosmos.toml')):
         client = TestClient(get_app())
 
         res = client.post('/run/', json={'input': 'AI trends'})
@@ -56,4 +56,3 @@ def test_crewai_example_completes():
         assert status in ('completed', 'failed')
         # We at least expect a string result/diagnostics
         assert isinstance(result_text, (str, type(None)))
-
