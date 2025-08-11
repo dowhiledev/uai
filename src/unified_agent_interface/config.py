@@ -12,6 +12,7 @@ class AgentConfig:
     runtime: str
     entrypoint: str
     raw: dict
+    base_dir: str
 
 
 def _read_toml(path: Path) -> dict:
@@ -55,10 +56,15 @@ def load_kosmos_agent_config(path: Optional[str] = None) -> AgentConfig:
     entrypoint = agent_section.get('entrypoint')
     if not runtime or not entrypoint:
         raise ValueError('agent.runtime and agent.entrypoint must be set in kosmos.toml')
-    return AgentConfig(runtime=str(runtime), entrypoint=str(entrypoint), raw=agent_section)
+    return AgentConfig(
+        runtime=str(runtime),
+        entrypoint=str(entrypoint),
+        raw=agent_section,
+        base_dir=str(chosen.parent.resolve()),
+    )
 
 
-def import_entrypoint(entrypoint: str) -> Tuple[Any, str, str]:
+def import_entrypoint(entrypoint: str, base_dir: Optional[str] = None) -> Tuple[Any, str, str]:
     """Import `module:attr` and return (obj, module_name, attr_name)."""
     if ':' not in entrypoint:
         raise ValueError("entrypoint must be in 'module:attr' format")
@@ -66,16 +72,23 @@ def import_entrypoint(entrypoint: str) -> Tuple[Any, str, str]:
     try:
         mod = importlib.import_module(mod_name)
     except ModuleNotFoundError:
-        # Try file-based import relative to CWD, e.g., examples/foo.py
+        # Try file-based import relative to base_dir, then CWD
         from importlib.util import spec_from_file_location, module_from_spec
-        candidate = Path(mod_name.replace('.', os.sep) + '.py')
-        if not candidate.exists():
+        paths = []
+        if base_dir:
+            paths.append(Path(base_dir) / (mod_name.replace('.', os.sep) + '.py'))
+        paths.append(Path(mod_name.replace('.', os.sep) + '.py'))
+        mod = None
+        for candidate in paths:
+            if candidate.exists():
+                spec = spec_from_file_location(mod_name, candidate)
+                if spec and spec.loader:  # type: ignore[truthy-bool]
+                    m = module_from_spec(spec)
+                    spec.loader.exec_module(m)  # type: ignore[attr-defined]
+                    mod = m
+                    break
+        if mod is None:
             raise
-        spec = spec_from_file_location(mod_name, candidate)
-        if spec is None or spec.loader is None:
-            raise
-        mod = module_from_spec(spec)
-        spec.loader.exec_module(mod)  # type: ignore[attr-defined]
     obj = mod
     for part in attr_path.split('.'):
         obj = getattr(obj, part)

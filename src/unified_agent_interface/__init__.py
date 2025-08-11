@@ -10,6 +10,15 @@ def cli() -> None:  # pragma: no cover
 
     app = typer.Typer(help="Unified Agent Interface (UAI) CLI")
 
+    def _load_dotenv_if_present() -> None:
+        try:
+            from dotenv import load_dotenv, find_dotenv  # type: ignore
+            env_path = find_dotenv(usecwd=True)
+            if env_path:
+                load_dotenv(env_path)
+        except Exception:
+            pass
+
     @app.command()
     def serve(
         host: str = "0.0.0.0",
@@ -17,7 +26,7 @@ def cli() -> None:  # pragma: no cover
         reload: bool = True,
     ) -> None:
         """Run the UAI FastAPI server."""
-
+        _load_dotenv_if_present()
         uvicorn.run(
             "unified_agent_interface.app:get_app",
             factory=True,
@@ -59,6 +68,7 @@ def cli() -> None:  # pragma: no cover
                 k, v = p.split("=", 1)
                 params[k] = v
         payload = {"input": input, "params": params or None}
+        _load_dotenv_if_present()
         data = _http_post(url, "/run/", payload)
         _print(data)
 
@@ -67,6 +77,7 @@ def cli() -> None:  # pragma: no cover
         task_id: str = typer.Argument(..., help="Task ID"),
         url: str = typer.Option("http://localhost:8000", "--url", help="Base server URL"),
     ) -> None:
+        _load_dotenv_if_present()
         data = _http_get(url, f"/run/{task_id}")
         _print(data)
 
@@ -76,6 +87,7 @@ def cli() -> None:  # pragma: no cover
         text: str = typer.Option(..., "--text", help="Input text"),
         url: str = typer.Option("http://localhost:8000", "--url", help="Base server URL"),
     ) -> None:
+        _load_dotenv_if_present()
         data = _http_post(url, f"/run/{task_id}/input", {"input": text})
         _print(data)
 
@@ -86,6 +98,7 @@ def cli() -> None:  # pragma: no cover
         level: str = typer.Option("INFO", "--level", help="Log level"),
         url: str = typer.Option("http://localhost:8000", "--url", help="Base server URL"),
     ) -> None:
+        _load_dotenv_if_present()
         data = _http_post(url, f"/run/{task_id}/logs", {"level": level, "message": message})
         _print(data)
 
@@ -93,6 +106,7 @@ def cli() -> None:  # pragma: no cover
     def chat_create(
         url: str = typer.Option("http://localhost:8000", "--url", help="Base server URL"),
     ) -> None:
+        _load_dotenv_if_present()
         data = _http_post(url, "/chat/", {})
         _print(data)
 
@@ -102,6 +116,7 @@ def cli() -> None:  # pragma: no cover
         text: str = typer.Option(..., "--text", help="User message"),
         url: str = typer.Option("http://localhost:8000", "--url", help="Base server URL"),
     ) -> None:
+        _load_dotenv_if_present()
         data = _http_post(url, f"/chat/{session_id}", {"user_input": text})
         _print(data)
 
@@ -110,10 +125,87 @@ def cli() -> None:  # pragma: no cover
         session_id: str = typer.Argument(..., help="Chat session ID"),
         url: str = typer.Option("http://localhost:8000", "--url", help="Base server URL"),
     ) -> None:
+        _load_dotenv_if_present()
         data = _http_get(url, f"/chat/{session_id}/messages")
         _print(data)
 
     app.add_typer(run_app, name="run")
     app.add_typer(chat_app, name="chat")
+
+    # Worker commands
+    worker_app = typer.Typer(help="Manage background worker")
+
+    import procrastinate
+
+    def _install_schema_for_app(papp: procrastinate.App) -> None:
+        import typer as _typer
+        # Try connector.install first
+        with papp.open():
+            papp.schema_manager.apply_schema()
+            _typer.echo("Procrastinate schema installed (schema_manager.apply_schema)")
+            return
+        _typer.echo("Procrastinate schema installation failed (schema_manager.apply_schema)")
+
+    @worker_app.command("start")
+    def worker_start() -> None:
+        """Install schema and start Procrastinate worker (requires DATABASE_URL/PROCRASTINATE_DSN)."""
+        from .queue import get_procrastinate_app
+
+        _load_dotenv_if_present()
+        papp = get_procrastinate_app()
+
+        # Install schema first (idempotent). If it fails, show error but attempt a connectivity check.
+        try:
+            _install_schema_for_app(papp)
+        except Exception as e:
+            typer.echo(f"Schema install failed: {e}")
+
+        # Pre-flight connection check if available
+        try:
+            with papp.open():
+                ok = papp.check_connection()  # type: ignore[no-untyped-call]
+                if not ok:
+                    raise RuntimeError("Cannot connect to database")
+        except Exception as e:
+            raise RuntimeError(f"DB connection check failed: {e}")
+
+        # Try common worker APIs across versions
+        with papp.open():
+            papp.run_worker()  # type: ignore[attr-defined]
+
+    @worker_app.command("install")
+    def worker_install() -> None:
+        """Install Procrastinate schema into the database."""
+        from .queue import get_procrastinate_app
+
+        _load_dotenv_if_present()
+        papp = get_procrastinate_app()
+        _install_schema_for_app(papp)
+
+    @worker_app.command("check")
+    def worker_check() -> None:
+        """Check DB connectivity for Procrastinate."""
+        from .queue import get_procrastinate_app
+
+        _load_dotenv_if_present()
+        papp = get_procrastinate_app()
+
+        ok = False
+        err = None
+        try:
+            # App must be open for checks
+            with papp.open():
+                print(1)
+                ok = bool(papp.check_connection())  # type: ignore
+                print(papp.check_connection())
+        except Exception as e:
+            ok = False
+            err = e
+        if ok:
+            typer.echo(f"Connection OK")
+        else:
+            typer.echo(f"Connection FAILED: {err}")
+
+    app.add_typer(worker_app, name="worker")
 
     app()

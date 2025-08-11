@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Optional
 
 from ...config import AgentConfig, import_entrypoint
+from ...queue import enqueue_run_execute
 from ...models.run import RunTask
 from .run_base import RunAgent
 
@@ -35,71 +36,19 @@ class ConfiguredRunAgent(RunAgent):
         task.params["agent"] = self.name()
         task.estimated_completion_time = datetime.utcnow() + timedelta(seconds=self._eta_seconds)
 
-        runtime = self.cfg.runtime.lower()
-        # Try to import entrypoint early; if it fails, mark task as failed gracefully.
+        # Defer execution to Procrastinate worker (or inline in tests)
         try:
-            # Optionally load examples/.env if present (best effort)
-            try:
-                from dotenv import load_dotenv  # type: ignore
-                from pathlib import Path
-                import os
-                env_path = Path(os.getcwd()) / "examples" / ".env"
-                if env_path.exists():
-                    load_dotenv(env_path)
-            except Exception:
-                pass
+            def _inline_complete(status: str, result_text: Optional[str]):
+                task.status = status
+                task.result_text = result_text
+                task.estimated_completion_time = None
 
-            entry_obj, _, _ = import_entrypoint(self.cfg.entrypoint)
+            enqueue_run_execute(task_id=task.id, initial_input=initial_input, inline_complete=_inline_complete)
         except Exception as e:
             task.status = "failed"
-            task.result_text = f"Import error: {e}"
+            task.result_text = f"Queue error: {e}"
             task.estimated_completion_time = None
-            return
-
-        if runtime == "crewai":
-            # Expect a Crew-like object with kickoff(inputs=...)
-            inputs: Optional[dict] = {"topic": (initial_input or "").strip()}
-
-            def runner():
-                try:
-                    result = entry_obj.kickoff(inputs=inputs)
-                    task.result_text = str(result)
-                    task.status = "completed"
-                except Exception as e:  # pragma: no cover - integration path
-                    task.status = "failed"
-                    task.result_text = f"CrewAI error: {e}"
-                finally:
-                    task.estimated_completion_time = None
-
-            self._start_thread(task, runner)
-
-        elif runtime == "callable":
-            # Call arbitrary callable; pass dict with 'input' and 'params'
-            if not callable(entry_obj):
-                task.status = "failed"
-                task.result_text = "Configured entrypoint is not callable"
-                task.estimated_completion_time = None
-                return
-
-            def runner():
-                try:
-                    payload = {"input": initial_input, "params": dict(task.params)}
-                    result = entry_obj(payload)
-                    task.result_text = str(result) if result is not None else ""
-                    task.status = "completed"
-                except Exception as e:
-                    task.status = "failed"
-                    task.result_text = f"Callable error: {e}"
-                finally:
-                    task.estimated_completion_time = None
-
-            self._start_thread(task, runner)
-
-        else:
-            task.status = "failed"
-            task.result_text = f"Unsupported runtime: {self.cfg.runtime}"
-            task.estimated_completion_time = None
-
+            
     def on_status(self, task: RunTask) -> None:
         t = self._threads.get(task.id)
         if t and not t.is_alive() and task.status == "running":

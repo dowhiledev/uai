@@ -37,3 +37,13 @@ Agent Configuration
   - "crewai": imports `module:attr` as a Crew and calls `crew.kickoff(inputs={ topic: <input> })` in a background thread.
 
 - The app loads this config on startup and uses it for all `/run` requests.
+
+Background Jobs (Procrastinate)
+-------------------------------
+- Runs are executed via a Procrastinate task: `uai.run.execute`.
+- Configure DSN via `PROCRASTINATE_DSN` or `DATABASE_URL` (e.g., in `.env`).
+- Start the worker (auto-installs schema first): `uai worker start`.
+- Install schema: `uai worker install` (run once per database).
+- Check connectivity: `uai worker check`.
+- For tests or local dev without DB, set `UAI_PROCRASTINATE_INLINE=1` to execute jobs inline.
+- Note: current storage is in-memory; for multi-process workers, add a persistent storage backend so workers can update tasks across processes. A temporary callback endpoint `/run/{task_id}/complete` is used by workers to report completion.
