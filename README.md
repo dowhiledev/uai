@@ -22,10 +22,10 @@ CLI Overview
 Project Structure
 -----------------
 - `src/unified_agent_interface/app.py`: FastAPI app factory.
-- `src/unified_agent_interface/api/`: Routers for `/run` (chat endpoints are placeholders).
+- `src/unified_agent_interface/api/`: Routers for `/run` and `/chat`.
 - `src/unified_agent_interface/models/`: Pydantic models and schemas.
 - `src/unified_agent_interface/components/`: In-memory storage and run agent shim.
-- `src/unified_agent_interface/frameworks/`: Runtime adapters (`crewai`, `callable`).
+- `src/unified_agent_interface/frameworks/`: Runtime adapters (`crewai`, `langchain`, `callable`).
 - `src/unified_agent_interface/queue.py`: Procrastinate integration and job dispatch.
 - `examples/`: Callable sample and CrewAI examples (with and without human input).
 
@@ -47,6 +47,9 @@ Runtimes (Adapters)
 - `crewai`: Imports a `Crew` and calls `crew.kickoff(inputs=...)`.
   - Inputs: pass JSON via `--input '{"topic":"..."}'`. Dicts are used as-is; string inputs map to `{ "input": "..." }`.
   - Human input: When the Crew calls `input()`, UAI sets status to `waiting_input` and populates `input_prompt`. Provide input with `uai run input` and the run resumes.
+- `langchain`: Imports a LangChain `Runnable`/`LLMChain` and calls `invoke(inputs)` (or `run(...)` fallback).
+  - Inputs: dicts are passed as-is. String inputs map to `{ "text": "..." }`.
+  - Output: tries `message.content`, then common dict keys (`text`, `output_text`, `output`, `result`), else `str(result)`.
 - `callable`: Imports a Python callable.
   - If `--input` is a JSON object, UAI tries `fn(**obj)`, falling back to `fn(obj)`; otherwise it calls `fn({"input": "...", "params": {}})`.
 
@@ -55,6 +58,7 @@ Examples
 - Callable: `examples/simple_entrypoint.py` with `examples/kosmos_callable.toml`.
 - CrewAI (basic): `examples/crewai/main.py` with `examples/crewai/kosmos.toml`.
 - CrewAI (human input): `examples/crewai_user_input/main.py` with `examples/crewai_user_input/kosmos.toml`.
+- LangChain (LLMChain): `examples/langchain/app.py` with `examples/langchain/kosmos.toml`.
 
 Run API
 -------
@@ -63,6 +67,13 @@ Run API
 - `POST /run/{id}/input` (body: `{ "input": "..." }`): appends to `input_buffer` and resumes a waiting run.
 - `POST /run/{id}/logs` (body: `{ level, message }`): appends a log.
 - `POST /run/{id}/complete` (internal): worker callback to finalize a run.
+
+Chat API
+--------
+- `POST /chat/`: creates a chat session and returns `{ session_id }`.
+- `POST /chat/{session_id}`: sends a user message; responds after generating the assistant reply with `{ state, artifacts, messages }`.
+- `GET /chat/{session_id}/messages`: lists messages in the session.
+- `DELETE /chat/{session_id}`: deletes the session.
 
 Background Jobs (Procrastinate)
 -------------------------------
@@ -91,4 +102,4 @@ Troubleshooting
 Notes
 -----
 - Storage is in-memory for now; swap with a persistent backend (Postgres/Redis) for multi-process reliability. The worker currently finalizes runs via a callback to `POST /run/{id}/complete`.
-- Chat endpoints are placeholders and return `501 Not Implemented` until a chat adapter is added in `frameworks/`.
+- LangChain chat requires sessions: stateless `POST /chat/next` is not supported and returns 400. UAI maintains a separate chain instance per session to isolate memory.
