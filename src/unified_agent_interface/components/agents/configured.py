@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import threading
 from datetime import datetime, timedelta
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 
 from ...config import AgentConfig, import_entrypoint
 from ...queue import enqueue_run_execute
@@ -31,7 +31,7 @@ class ConfiguredRunAgent(RunAgent):
         self._threads[task.id] = t
         t.start()
 
-    def on_create(self, task: RunTask, initial_input: str | None) -> None:
+    def on_create(self, task: RunTask, initial_input: Any | None) -> None:
         task.status = "running"
         task.params["agent"] = self.name()
         task.estimated_completion_time = datetime.utcnow() + timedelta(seconds=self._eta_seconds)
@@ -43,7 +43,7 @@ class ConfiguredRunAgent(RunAgent):
                 task.result_text = result_text
                 task.estimated_completion_time = None
 
-            enqueue_run_execute(task_id=task.id, initial_input=initial_input, inline_complete=_inline_complete)
+            enqueue_run_execute(task_id=task.id, initial_payload=initial_input, inline_complete=_inline_complete)
         except Exception as e:
             task.status = "failed"
             task.result_text = f"Queue error: {e}"

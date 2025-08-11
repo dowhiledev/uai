@@ -51,7 +51,7 @@ class InMemoryStorage:
         return None
 
     # Runs
-    def create_run(self, initial_input: Optional[str], params: dict) -> RunTask:
+    def create_run(self, initial_input: Optional[object], params: dict) -> RunTask:
         tid = str(uuid.uuid4())
         task = RunTask(
             id=tid,
@@ -59,7 +59,7 @@ class InMemoryStorage:
             estimated_completion_time=None,
             params=dict(params or {}),
         )
-        if initial_input:
+        if isinstance(initial_input, str) and initial_input:
             task.input_buffer.append(initial_input)
         self._runs[tid] = task
         return task

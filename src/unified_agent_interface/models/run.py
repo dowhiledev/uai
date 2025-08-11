@@ -34,7 +34,7 @@ class RunTask(BaseModel):
 
 
 class CreateRunRequest(BaseModel):
-    input: Optional[str] = None
+    input: Optional[Any] = None
     params: Optional[dict[str, Any]] = None
 
 

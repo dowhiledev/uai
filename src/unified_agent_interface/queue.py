@@ -38,7 +38,7 @@ def get_procrastinate_app():  # pragma: no cover - thin wrapper
     @_app.task(name="uai.run.execute")
     def execute(
         task_id: str,
-        initial_input: Optional[str],
+        initial_input: Optional[Any],
         runtime: str,
         entrypoint: str,
         config_dir: Optional[str] = None,
@@ -112,15 +112,26 @@ def get_procrastinate_app():  # pragma: no cover - thin wrapper
 
                 try:
                     builtins.input = _wait_and_get_input  # type: ignore[assignment]
-                    inputs = {"topic": (initial_input or "").strip()}
-                    result_text = str(obj.kickoff(inputs=inputs))
+                    if isinstance(initial_input, dict):
+                        kickoff_inputs = initial_input
+                    elif isinstance(initial_input, str):
+                        kickoff_inputs = {"input": initial_input}
+                    else:
+                        kickoff_inputs = {}
+                    result_text = str(obj.kickoff(inputs=kickoff_inputs))
                 finally:
                     builtins.input = real_input  # type: ignore[assignment]
             elif runtime.lower() == "callable":
                 if not callable(obj):
                     raise TypeError("entrypoint is not callable")
-                payload = {"input": initial_input, "params": {}}
-                result = obj(payload)
+                if isinstance(initial_input, dict):
+                    try:
+                        result = obj(**initial_input)
+                    except TypeError:
+                        result = obj(initial_input)
+                else:
+                    payload = {"input": initial_input, "params": {}}
+                    result = obj(payload)
                 result_text = str(result) if result is not None else ""
             else:
                 raise ValueError(f"Unsupported runtime: {runtime}")
@@ -151,7 +162,7 @@ from typing import Callable, Any
 
 def enqueue_run_execute(
     task_id: str,
-    initial_input: Optional[str],
+    initial_payload: Optional[Any],
     inline_complete: Optional[Callable[[str, Optional[str]], Any]] = None,
 ) -> Optional[str]:
     """Enqueue or directly execute the run task.
@@ -172,13 +183,23 @@ def enqueue_run_execute(
         try:
             obj, _, _ = import_entrypoint(entrypoint, base_dir=config_dir)
             if runtime.lower() == "crewai":
-                inputs = {"topic": (initial_input or "").strip()}
-                result_text = str(obj.kickoff(inputs=inputs))
+                if isinstance(initial_payload, dict):
+                    kickoff_inputs = initial_payload
+                elif isinstance(initial_payload, str):
+                    kickoff_inputs = {"input": initial_payload}
+                else:
+                    kickoff_inputs = {}
+                result_text = str(obj.kickoff(inputs=kickoff_inputs))
             elif runtime.lower() == "callable":
                 if not callable(obj):
                     raise TypeError("entrypoint is not callable")
-                payload = {"input": initial_input, "params": {}}
-                r = obj(payload)
+                if isinstance(initial_payload, dict):
+                    try:
+                        r = obj(**initial_payload)
+                    except TypeError:
+                        r = obj(initial_payload)
+                else:
+                    r = obj({"input": initial_payload, "params": {}})
                 result_text = str(r) if r is not None else ""
             else:
                 raise ValueError(f"Unsupported runtime: {runtime}")
@@ -209,7 +230,7 @@ def enqueue_run_execute(
     with app.open():
         job_id = app.tasks["uai.run.execute"].defer(
             task_id=task_id,
-            initial_input=initial_input,
+            initial_input=initial_payload,
             runtime=runtime,
             entrypoint=entrypoint,
             config_dir=config_dir,
