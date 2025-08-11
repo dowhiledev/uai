@@ -11,6 +11,9 @@ class CrewAIAdapter(RuntimeAdapter):
     def name(self) -> str:
         return "crewai"
 
+    def supports_chat(self) -> bool:
+        return False
+
     def execute(
         self,
         entrypoint_obj: Any,
@@ -50,3 +53,13 @@ class CrewAIAdapter(RuntimeAdapter):
         finally:
             builtins.input = real_input  # type: ignore[assignment]
 
+    def chat_respond(
+        self,
+        entrypoint_obj: Any,
+        *,
+        session_id: str,
+        user_input: str,
+        state: dict | None,
+        config_dir: str | None = None,
+    ) -> str:
+        raise NotImplementedError("CrewAI adapter does not support chat mode")

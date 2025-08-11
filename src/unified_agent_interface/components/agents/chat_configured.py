@@ -7,6 +7,7 @@ from typing import Any, Dict, Tuple, List
 from .base import Agent
 from ...config import AgentConfig, import_entrypoint
 from ...models.chat import Artifact, Message
+from ...frameworks import get_adapter
 
 
 class ConfiguredChatAgent(Agent):
@@ -58,24 +59,18 @@ class ConfiguredChatAgent(Agent):
 
     def respond(self, session_id: str, state: dict, user_input: str) -> Tuple[dict, List[Artifact], Message | None]:
         rt = (self.cfg.runtime or "").lower()
-        if rt == "langchain":
-            inst = self._langchain_ensure_instance(session_id)
-            inputs: Any = {"text": user_input} if not isinstance(state, dict) else {**state, "text": user_input}
-            # Prefer invoke(); fallback to run()
-            if hasattr(inst, "invoke") and callable(getattr(inst, "invoke")):
-                result = inst.invoke(inputs)
-            elif hasattr(inst, "run") and callable(getattr(inst, "run")):
-                try:
-                    result = inst.run(inputs)
-                except TypeError:
-                    result = inst.run(user_input)
-            else:
-                raise TypeError("Unsupported LangChain entrypoint for chat")
+        adapter = get_adapter(rt)
+        if not adapter.supports_chat():
+            raise NotImplementedError(f"Chat not implemented for runtime: {self.cfg.runtime}")
 
-            text = self._normalize_langchain_result(result)
-            reply = Message(role="assistant", content=text)
-            return state or {}, [], reply
-
-        # Other runtimes not yet supported for chat
-        raise NotImplementedError(f"Chat not implemented for runtime: {self.cfg.runtime}")
-
+        # For frameworks like LangChain, create or reuse a per-session entrypoint instance
+        inst = self._langchain_ensure_instance(session_id) if rt == "langchain" else import_entrypoint(self.cfg.entrypoint, base_dir=self.cfg.base_dir)[0]
+        text = adapter.chat_respond(
+            inst,
+            session_id=session_id,
+            user_input=user_input,
+            state=state or {},
+            config_dir=self.cfg.base_dir,
+        )
+        reply = Message(role="assistant", content=text)
+        return state or {}, [], reply

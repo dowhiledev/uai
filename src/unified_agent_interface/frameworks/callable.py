@@ -9,6 +9,9 @@ class CallableAdapter(RuntimeAdapter):
     def name(self) -> str:
         return "callable"
 
+    def supports_chat(self) -> bool:
+        return False
+
     def execute(
         self,
         entrypoint_obj: Any,
@@ -28,3 +31,13 @@ class CallableAdapter(RuntimeAdapter):
             result = entrypoint_obj({"input": initial_payload, "params": {}})
         return "" if result is None else str(result)
 
+    def chat_respond(
+        self,
+        entrypoint_obj: Any,
+        *,
+        session_id: str,
+        user_input: str,
+        state: dict | None,
+        config_dir: str | None = None,
+    ) -> str:
+        raise NotImplementedError("Callable adapter does not support chat mode")
