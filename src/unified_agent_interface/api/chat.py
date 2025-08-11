@@ -35,8 +35,7 @@ def next_step(payload: NextRequest, req: Request, agent: Agent = Depends(get_age
     # Stateless chat is not available for LangChain; require a session
     if isinstance(agent, ConfiguredChatAgent) and agent.runtime().lower() == "langchain":
         raise HTTPException(status_code=400, detail="Stateless chat is not supported for LangChain. Create a session first.")
-    # Use a placeholder session id for stateless agents (non-LangChain)
-    state, artifacts, _ = agent.respond("stateless", payload.state or {}, payload.user_input or "")
+    state, artifacts, _ = agent.next(payload.state or {}, payload.user_input or "")
     return NextResponse(state=state, artifacts=artifacts)
 
 
@@ -62,7 +61,7 @@ def send_message(
     storage.add_message(session_id, user_msg)
 
     # Agent response (sync; waits and returns reply)
-    state, artifacts, reply = agent.respond(session_id, payload.state or {}, payload.user_input or "")
+    artifacts, reply = agent.respond(session_id, payload.user_input or "")
     if reply:
         storage.add_message(session_id, reply)
 
@@ -70,7 +69,7 @@ def send_message(
         storage.add_artifact(session_id, art)
 
     return {
-        "state": state,
+        "state": {},
         "artifacts": artifacts,
         "messages": [user_msg, reply] if reply else [user_msg],
     }

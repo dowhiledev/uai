@@ -24,53 +24,35 @@ class ConfiguredChatAgent(Agent):
     def runtime(self) -> str:
         return self.cfg.runtime
 
-    def _langchain_ensure_instance(self, session_id: str) -> Any:
-        if session_id in self._instances:
-            return self._instances[session_id]
-
-        # Load a fresh instance for this session. We try to reload the module
-        # to re-execute module-level construction (e.g., memory/chain objects).
-        obj, mod_name, attr_path = import_entrypoint(self.cfg.entrypoint, base_dir=self.cfg.base_dir)
-        try:
-            if mod_name in sys.modules:
-                m = sys.modules[mod_name]
-                importlib.reload(m)
-                # Re-resolve attribute after reload
-                for part in attr_path.split('.'):
-                    obj = getattr(m, part)
-        except Exception:
-            # Fallback to the initially imported object
-            pass
-
-        self._instances[session_id] = obj
-        return obj
-
-    def _normalize_langchain_result(self, result: Any) -> str:
-        try:
-            if hasattr(result, "content"):
-                return str(getattr(result, "content"))
-            if isinstance(result, dict):
-                for key in ("text", "output_text", "output", "result"):
-                    if key in result:
-                        return str(result[key])
-            return "" if result is None else str(result)
-        except Exception:
-            return str(result)
-
-    def respond(self, session_id: str, state: dict, user_input: str) -> Tuple[dict, List[Artifact], Message | None]:
+    def respond(self, session_id: str, user_input: str) -> Tuple[List[Artifact], Message | None]:
         rt = (self.cfg.runtime or "").lower()
         adapter = get_adapter(rt)
         if not adapter.supports_chat():
             raise NotImplementedError(f"Chat not implemented for runtime: {self.cfg.runtime}")
 
-        # For frameworks like LangChain, create or reuse a per-session entrypoint instance
-        inst = self._langchain_ensure_instance(session_id) if rt == "langchain" else import_entrypoint(self.cfg.entrypoint, base_dir=self.cfg.base_dir)[0]
+        # Delegate to adapter; pass entrypoint string so adapter can manage per-session state
         text = adapter.chat_respond(
-            inst,
+            self.cfg.entrypoint,
             session_id=session_id,
+            user_input=user_input,
+            state=None,
+            config_dir=self.cfg.base_dir,
+        )
+        reply = Message(role="assistant", content=text)
+        return [], reply
+
+    def next(self, state: dict, user_input: str) -> Tuple[dict, List[Artifact], Message | None]:
+        rt = (self.cfg.runtime or "").lower()
+        adapter = get_adapter(rt)
+        if not adapter.supports_chat():
+            raise NotImplementedError(f"Chat not implemented for runtime: {self.cfg.runtime}")
+        # Stateless runs use a synthetic session id
+        text = adapter.chat_respond(
+            self.cfg.entrypoint,
+            session_id="stateless",
             user_input=user_input,
             state=state or {},
             config_dir=self.cfg.base_dir,
         )
-        reply = Message(role="assistant", content=text)
-        return state or {}, [], reply
+        # For stateless next we don't return messages; just state/artifacts
+        return state or {}, [], None
