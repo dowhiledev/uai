@@ -38,7 +38,7 @@ def get_procrastinate_app():  # pragma: no cover - thin wrapper
     @_app.task(name="uai.run.execute")
     def execute(
         task_id: str,
-        initial_input: Optional[str],
+        initial_input: Optional[Any],
         runtime: str,
         entrypoint: str,
         config_dir: Optional[str] = None,
@@ -63,19 +63,82 @@ def get_procrastinate_app():  # pragma: no cover - thin wrapper
 
             obj, _, _ = import_entrypoint(entrypoint, base_dir=config_dir)
             if runtime.lower() == "crewai":
-                inputs = {"topic": (initial_input or "").strip()}
-                result_text = str(obj.kickoff(inputs=inputs))
+                import builtins
+                import time as _time
+                import httpx as _httpx
+
+                # Track how many inputs have been consumed
+                input_index = 0
+
+                real_input = getattr(builtins, "input")
+
+                def _wait_and_get_input(prompt: str = "") -> str:
+                    nonlocal input_index
+                    base_url = os.getenv("UAI_BASE_URL", "http://localhost:8000").rstrip("/")
+                    # Ensure a meaningful prompt
+                    prompt = prompt or "Awaiting human input..."
+                    # Initialize baseline to skip any existing inputs (e.g., initial topic)
+                    try:
+                        r0 = _httpx.get(f"{base_url}/run/{task_id}", timeout=10)
+                        if r0.status_code == 200:
+                            d0 = r0.json()
+                            buf0 = d0.get("input_buffer") or []
+                            if isinstance(buf0, list):
+                                input_index = len(buf0)
+                    except Exception:
+                        pass
+                    # Notify server we're waiting
+                    try:
+                        _httpx.post(f"{base_url}/run/{task_id}/wait", json={"prompt": prompt}, timeout=30)
+                    except Exception:
+                        pass
+
+                    # Poll until new input is provided
+                    for _ in range(600):  # up to ~5 minutes
+                        try:
+                            r = _httpx.get(f"{base_url}/run/{task_id}", timeout=10)
+                            if r.status_code == 200:
+                                data = r.json()
+                                buf = data.get("input_buffer") or []
+                                if isinstance(buf, list) and len(buf) > input_index:
+                                    value = str(buf[input_index])
+                                    input_index += 1
+                                    return value
+                        except Exception:
+                            pass
+                        _time.sleep(0.5)
+                    # Timeout fallback
+                    return ""
+
+                try:
+                    builtins.input = _wait_and_get_input  # type: ignore[assignment]
+                    if isinstance(initial_input, dict):
+                        kickoff_inputs = initial_input
+                    elif isinstance(initial_input, str):
+                        kickoff_inputs = {"input": initial_input}
+                    else:
+                        kickoff_inputs = {}
+                    result_text = str(obj.kickoff(inputs=kickoff_inputs))
+                finally:
+                    builtins.input = real_input  # type: ignore[assignment]
             elif runtime.lower() == "callable":
                 if not callable(obj):
                     raise TypeError("entrypoint is not callable")
-                payload = {"input": initial_input, "params": {}}
-                result = obj(payload)
+                if isinstance(initial_input, dict):
+                    try:
+                        result = obj(**initial_input)
+                    except TypeError:
+                        result = obj(initial_input)
+                else:
+                    payload = {"input": initial_input, "params": {}}
+                    result = obj(payload)
                 result_text = str(result) if result is not None else ""
             else:
                 raise ValueError(f"Unsupported runtime: {runtime}")
         except Exception as e:  # pragma: no cover - integration error path
+            import traceback as _tb
             status = "failed"
-            result_text = f"Error: {e}"
+            result_text = f"Error: {e}\n" + _tb.format_exc()
 
         # Notify server via callback
         base_url = os.getenv("UAI_BASE_URL", "http://localhost:8000").rstrip("/")
@@ -99,7 +162,7 @@ from typing import Callable, Any
 
 def enqueue_run_execute(
     task_id: str,
-    initial_input: Optional[str],
+    initial_payload: Optional[Any],
     inline_complete: Optional[Callable[[str, Optional[str]], Any]] = None,
 ) -> Optional[str]:
     """Enqueue or directly execute the run task.
@@ -120,13 +183,23 @@ def enqueue_run_execute(
         try:
             obj, _, _ = import_entrypoint(entrypoint, base_dir=config_dir)
             if runtime.lower() == "crewai":
-                inputs = {"topic": (initial_input or "").strip()}
-                result_text = str(obj.kickoff(inputs=inputs))
+                if isinstance(initial_payload, dict):
+                    kickoff_inputs = initial_payload
+                elif isinstance(initial_payload, str):
+                    kickoff_inputs = {"input": initial_payload}
+                else:
+                    kickoff_inputs = {}
+                result_text = str(obj.kickoff(inputs=kickoff_inputs))
             elif runtime.lower() == "callable":
                 if not callable(obj):
                     raise TypeError("entrypoint is not callable")
-                payload = {"input": initial_input, "params": {}}
-                r = obj(payload)
+                if isinstance(initial_payload, dict):
+                    try:
+                        r = obj(**initial_payload)
+                    except TypeError:
+                        r = obj(initial_payload)
+                else:
+                    r = obj({"input": initial_payload, "params": {}})
                 result_text = str(r) if r is not None else ""
             else:
                 raise ValueError(f"Unsupported runtime: {runtime}")
@@ -157,7 +230,7 @@ def enqueue_run_execute(
     with app.open():
         job_id = app.tasks["uai.run.execute"].defer(
             task_id=task_id,
-            initial_input=initial_input,
+            initial_input=initial_payload,
             runtime=runtime,
             entrypoint=entrypoint,
             config_dir=config_dir,

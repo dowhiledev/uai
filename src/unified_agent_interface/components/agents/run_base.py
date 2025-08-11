@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Protocol, Any
 
 from ...models.run import RunTask
 
@@ -8,7 +8,7 @@ from ...models.run import RunTask
 class RunAgent(Protocol):
     def name(self) -> str: ...
 
-    def on_create(self, task: RunTask, initial_input: str | None) -> None:
+    def on_create(self, task: RunTask, initial_input: Any | None) -> None:
         """Initialize a task when created."""
         ...
 
@@ -19,4 +19,3 @@ class RunAgent(Protocol):
     def on_input(self, task: RunTask, text: str) -> None:
         """Handle external input provided to the task."""
         ...
-

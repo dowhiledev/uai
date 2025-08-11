@@ -57,6 +57,8 @@ def provide_input(task_id: str, payload: CreateRunRequest, storage: Storage = De
     storage.append_run_input(task_id, payload.input or "")
     agent = req.app.state.run_agent  # type: ignore[attr-defined]
     agent.on_input(task, payload.input or "")
+    # Resume running
+    task.status = "running"
     return {"ok": True}
 
 
@@ -82,6 +84,17 @@ def send_logs(task_id: str, payload: LogEntry, storage: Storage = Depends(get_st
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
     storage.append_run_log(task_id, payload)
+    return {"ok": True}
+
+
+@router.post("/{task_id}/wait")
+def wait_for_input(task_id: str, payload: dict, storage: Storage = Depends(get_storage)):
+    task = storage.get_run(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    task.status = "waiting_input"
+    task.estimated_completion_time = None
+    task.input_prompt = str(payload.get("prompt") or "")
     return {"ok": True}
 
 

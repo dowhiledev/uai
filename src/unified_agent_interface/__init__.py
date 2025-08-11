@@ -58,7 +58,7 @@ def cli() -> None:  # pragma: no cover
 
     @run_app.command("create")
     def run_create(
-        input: str = typer.Option(None, "--input", help="Initial run input"),
+        input: str = typer.Option(None, "--input", help="Initial run input (string or JSON)"),
         url: str = typer.Option("http://localhost:8000", "--url", help="Base server URL"),
         param: t.List[str] = typer.Option(None, "--param", help="Extra param key=value", show_default=False),
     ) -> None:
@@ -67,7 +67,14 @@ def cli() -> None:  # pragma: no cover
             if "=" in p:
                 k, v = p.split("=", 1)
                 params[k] = v
-        payload = {"input": input, "params": params or None}
+        # Try to parse input as JSON if it looks like an object/array
+        parsed_input: t.Any = input
+        if input and input.strip() and input.strip()[0] in "[{":
+            try:
+                parsed_input = json.loads(input)
+            except Exception:
+                parsed_input = input
+        payload = {"input": parsed_input, "params": params or None}
         _load_dotenv_if_present()
         data = _http_post(url, "/run/", payload)
         _print(data)
