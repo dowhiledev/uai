@@ -83,3 +83,21 @@ def send_logs(task_id: str, payload: LogEntry, storage: Storage = Depends(get_st
         raise HTTPException(status_code=404, detail="Task not found")
     storage.append_run_log(task_id, payload)
     return {"ok": True}
+
+
+@router.post("/{task_id}/complete")
+def complete_run(
+    task_id: str,
+    payload: dict,  # expects {status: completed|failed, result_text?: str}
+    storage: Storage = Depends(get_storage),
+):
+    task = storage.get_run(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    status = payload.get("status")
+    if status not in ("completed", "failed"):
+        raise HTTPException(status_code=400, detail="Invalid status")
+    task.status = status
+    task.result_text = payload.get("result_text")
+    task.estimated_completion_time = None
+    return {"ok": True}

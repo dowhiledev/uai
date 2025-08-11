@@ -30,5 +30,5 @@ def _temp_env(**env):
 @pytest.fixture()
 def client() -> TestClient:
     # Point the app to a test kosmos.toml that uses a simple callable entrypoint
-    with _temp_env(KOSMOS_TOML=str(os.path.join('examples', 'kosmos_callable.toml'))):
+    with _temp_env(KOSMOS_TOML=str(os.path.join('examples', 'kosmos_callable.toml')), UAI_PROCRASTINATE_INLINE="1"):
         yield TestClient(get_app())
