@@ -39,13 +39,16 @@ class ConfiguredChatAgent(Agent):
             )
 
         # Delegate to adapter; pass entrypoint string so adapter can manage per-session state
-        text = adapter.chat_respond(
-            self.cfg.entrypoint,
-            session_id=session_id,
-            user_input=user_input,
-            state=None,
-            config_dir=self.cfg.base_dir,
-        )
+        from ...runtime import session_context
+
+        with session_context(session_id):
+            text = adapter.chat_respond(
+                self.cfg.entrypoint,
+                session_id=session_id,
+                user_input=user_input,
+                state=None,
+                config_dir=self.cfg.base_dir,
+            )
         reply = Message(role="assistant", content=text)
         return [], reply
 
@@ -65,12 +68,15 @@ class ConfiguredChatAgent(Agent):
                 f"Chat not implemented for runtime: {self.cfg.runtime}"
             )
         # Stateless runs use a synthetic session id
-        adapter.chat_respond(
-            self.cfg.entrypoint,
-            session_id="stateless",
-            user_input=user_input,
-            state=state or {},
-            config_dir=self.cfg.base_dir,
-        )
+        from ...runtime import session_context
+
+        with session_context("stateless"):
+            adapter.chat_respond(
+                self.cfg.entrypoint,
+                session_id="stateless",
+                user_input=user_input,
+                state=state or {},
+                config_dir=self.cfg.base_dir,
+            )
         # For stateless next we don't return messages; just state/artifacts
         return state or {}, [], None

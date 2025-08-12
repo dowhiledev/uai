@@ -68,6 +68,7 @@ Examples
 - CrewAI (basic): `examples/crewai/main.py` with `examples/crewai/kosmos.toml`.
 - CrewAI (human input): `examples/crewai_user_input/main.py` with `examples/crewai_user_input/kosmos.toml`.
 - LangChain (LLMChain): `examples/langchain/app.py` with `examples/langchain/kosmos.toml`.
+- CrewAI with custom logs/input detection (callbacks): `examples/crewai_custom_log_input_detection/app.py` with `examples/crewai_custom_log_input_detection/kosmos.toml`.
 
 Run API
 -------

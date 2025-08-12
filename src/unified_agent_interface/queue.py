@@ -67,12 +67,15 @@ def get_procrastinate_app():  # pragma: no cover - thin wrapper
             adapter = get_adapter(
                 runtime, adapter_path=adapter_path, base_dir=config_dir
             )
-            result_text = adapter.execute(
-                obj,
-                task_id=task_id,
-                initial_payload=initial_input,
-                config_dir=config_dir,
-            )
+            from .runtime import task_context
+
+            with task_context(task_id):
+                result_text = adapter.execute(
+                    obj,
+                    task_id=task_id,
+                    initial_payload=initial_input,
+                    config_dir=config_dir,
+                )
         except Exception as e:  # pragma: no cover - integration error path
             import traceback as _tb
 
@@ -126,12 +129,15 @@ def enqueue_run_execute(
             adapter = get_adapter(
                 runtime, adapter_path=adapter_path, base_dir=config_dir
             )
-            result_text = adapter.execute(
-                obj,
-                task_id=task_id,
-                initial_payload=initial_payload,
-                config_dir=config_dir,
-            )
+            from .runtime import task_context
+
+            with task_context(task_id):
+                result_text = adapter.execute(
+                    obj,
+                    task_id=task_id,
+                    initial_payload=initial_payload,
+                    config_dir=config_dir,
+                )
         except Exception as e:
             status = "failed"
             result_text = f"Error: {e}"

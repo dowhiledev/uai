@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import time
 from typing import Any, Optional
+from ..runtime import get_current_task_id, get_current_session_id
 
 import httpx
 
@@ -49,7 +50,10 @@ def poll_for_next_input(
 
 
 # Convenience helpers for user adapters/agents
-def post_log(task_id: str, level: str, message: str) -> None:
+def post_log(task_id: Optional[str], level: str, message: str) -> None:
+    task_id = task_id or get_current_task_id() or ""
+    if not task_id:
+        return
     try:
         httpx.post(
             f"{server_base_url()}/run/{task_id}/logs",
@@ -61,8 +65,11 @@ def post_log(task_id: str, level: str, message: str) -> None:
 
 
 def add_run_artifact(
-    task_id: str, artifact: dict[str, Any]
+    task_id: Optional[str], artifact: dict[str, Any]
 ) -> Optional[dict[str, Any]]:
+    task_id = task_id or get_current_task_id() or ""
+    if not task_id:
+        return None
     try:
         r = httpx.post(
             f"{server_base_url()}/run/{task_id}/artifacts", json=artifact, timeout=60
@@ -75,8 +82,11 @@ def add_run_artifact(
 
 
 def add_chat_artifact(
-    session_id: str, artifact: dict[str, Any]
+    session_id: Optional[str], artifact: dict[str, Any]
 ) -> Optional[dict[str, Any]]:
+    session_id = session_id or get_current_session_id() or ""
+    if not session_id:
+        return None
     try:
         r = httpx.post(
             f"{server_base_url()}/chat/{session_id}/artifacts",
@@ -91,7 +101,7 @@ def add_chat_artifact(
 
 
 def request_human_input(
-    task_id: str,
+    task_id: Optional[str],
     prompt: str = "Awaiting human input...",
     baseline_index: Optional[int] = None,
 ) -> tuple[str, int]:
@@ -100,6 +110,9 @@ def request_human_input(
     Returns (value, new_baseline_index). If baseline_index is None, it is computed from
     current input_buffer length.
     """
+    task_id = task_id or get_current_task_id() or ""
+    if not task_id:
+        return "", baseline_index or 0
     if baseline_index is None:
         data = get_status(task_id) or {}
         buf = data.get("input_buffer") or []
