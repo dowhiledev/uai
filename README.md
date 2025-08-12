@@ -68,6 +68,7 @@ Examples
 - CrewAI (basic): `examples/crewai/main.py` with `examples/crewai/kosmos.toml`.
 - CrewAI (human input): `examples/crewai_user_input/main.py` with `examples/crewai_user_input/kosmos.toml`.
 - LangChain (LLMChain): `examples/langchain/app.py` with `examples/langchain/kosmos.toml`.
+- LangChain with instrumentation (logs around LLM calls): set `KOSMOS_TOML=examples/langchain/kosmos_patched.toml` to use `app:run_patched` which patches `LLMChain.invoke` and `ChatOpenAI.invoke` via `instrumentation.patch_many`.
 - CrewAI with custom logs/input detection (callbacks): `examples/crewai_custom_log_input_detection/app.py` with `examples/crewai_custom_log_input_detection/kosmos.toml`.
 
 Run API
@@ -126,5 +127,21 @@ Developer Utilities
   - `post_log(task_id, level, message)`: append a log entry to a run.
   - `add_run_artifact(task_id, artifact_dict)`: add an artifact to a run.
   - `add_chat_artifact(session_id, artifact_dict)`: add an artifact to a chat session.
+ - Instrumentation utilities in `unified_agent_interface.utils`:
+   - `patch_log(target, label=None, capture_return=False)`: persistently patch a function or method (callable or `"module:attr"`) to auto-log calls using `post_log`.
+   - `unpatch_log(target)`: restore a target patched via `patch_log`.
+   - `patch_function(target, label=None, capture_return=False)`: temporary/context-managed patch.
+   - `patch_many(*targets, label=None, capture_return=False)`: patch multiple targets within one context.
+
+Runtime Context
+---------------
+- UAI tracks the current run (`task_id`) and chat session (`session_id`) during execution so helpers can be called without IDs:
+  - `unified_agent_interface.runtime.task_context(task_id)` and `.session_context(session_id)` are used internally; helpers fall back to these when `task_id`/`session_id` is omitted.
+  - E.g., `post_log(None, "INFO", "message")` and `request_human_input(None, "prompt")` will route to the current run.
 
 These utilities let custom adapters define their own session management and input-waiting behavior.
+- Example (LangChain):
+  - `from langchain_openai import ChatOpenAI`
+  - `from unified_agent_interface.utils import patch_log`
+  - `patch_log(ChatOpenAI.invoke, capture_return=True)`
+  - Calls to `ChatOpenAI.invoke` will now be logged to the current run.

@@ -8,8 +8,13 @@ from langchain_core.prompts.chat import (
     MessagesPlaceholder,
 )
 from langchain_openai import ChatOpenAI
+from unified_agent_interface.utils import patch_log
 
 load_dotenv()
+
+# Persistently patch key LangChain calls to log via UAI
+patch_log(LLMChain.invoke, label="langchain", capture_return=False)
+patch_log(ChatOpenAI.invoke, label="langchain", capture_return=True)
 
 prompt = ChatPromptTemplate(
     [
