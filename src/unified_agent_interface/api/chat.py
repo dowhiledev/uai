@@ -31,10 +31,18 @@ def get_agent(req: Request) -> Agent:
 
 
 @router.post("/next", response_model=NextResponse)
-def next_step(payload: NextRequest, req: Request, agent: Agent = Depends(get_agent)) -> NextResponse:
+def next_step(
+    payload: NextRequest, req: Request, agent: Agent = Depends(get_agent)
+) -> NextResponse:
     # Stateless chat is not available for LangChain; require a session
-    if isinstance(agent, ConfiguredChatAgent) and agent.runtime().lower() == "langchain":
-        raise HTTPException(status_code=400, detail="Stateless chat is not supported for LangChain. Create a session first.")
+    if (
+        isinstance(agent, ConfiguredChatAgent)
+        and agent.runtime().lower() == "langchain"
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Stateless chat is not supported for LangChain. Create a session first.",
+        )
     state, artifacts, _ = agent.next(payload.state or {}, payload.user_input or "")
     return NextResponse(state=state, artifacts=artifacts)
 
@@ -84,7 +92,9 @@ def delete_chat(session_id: str, storage: Storage = Depends(get_storage)):
 
 
 @router.get("/{session_id}/messages", response_model=List[Message])
-def get_messages(session_id: str, storage: Storage = Depends(get_storage)) -> List[Message]:
+def get_messages(
+    session_id: str, storage: Storage = Depends(get_storage)
+) -> List[Message]:
     msgs = storage.get_messages(session_id)
     if msgs is None:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -92,7 +102,9 @@ def get_messages(session_id: str, storage: Storage = Depends(get_storage)) -> Li
 
 
 @router.get("/{session_id}/artifacts", response_model=List[Artifact])
-def list_artifacts(session_id: str, storage: Storage = Depends(get_storage)) -> List[Artifact]:
+def list_artifacts(
+    session_id: str, storage: Storage = Depends(get_storage)
+) -> List[Artifact]:
     arts = storage.get_artifacts(session_id)
     if arts is None:
         raise HTTPException(status_code=404, detail="Session not found")

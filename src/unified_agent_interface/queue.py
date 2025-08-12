@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Callable, Any
 
 from .config import import_entrypoint, load_kosmos_agent_config
 from .frameworks import get_adapter
@@ -57,6 +56,7 @@ def get_procrastinate_app():  # pragma: no cover - thin wrapper
                 if config_dir:
                     from dotenv import load_dotenv  # type: ignore
                     from pathlib import Path
+
                     env_path = Path(config_dir) / ".env"
                     if env_path.exists():
                         load_dotenv(env_path)
@@ -64,10 +64,18 @@ def get_procrastinate_app():  # pragma: no cover - thin wrapper
                 pass
 
             obj, _, _ = import_entrypoint(entrypoint, base_dir=config_dir)
-            adapter = get_adapter(runtime, adapter_path=adapter_path, base_dir=config_dir)
-            result_text = adapter.execute(obj, task_id=task_id, initial_payload=initial_input, config_dir=config_dir)
+            adapter = get_adapter(
+                runtime, adapter_path=adapter_path, base_dir=config_dir
+            )
+            result_text = adapter.execute(
+                obj,
+                task_id=task_id,
+                initial_payload=initial_input,
+                config_dir=config_dir,
+            )
         except Exception as e:  # pragma: no cover - integration error path
             import traceback as _tb
+
             status = "failed"
             result_text = f"Error: {e}\n" + _tb.format_exc()
 
@@ -88,9 +96,6 @@ def get_procrastinate_app():  # pragma: no cover - thin wrapper
     return _app
 
 
-from typing import Callable, Any
-
-
 def enqueue_run_execute(
     task_id: str,
     initial_payload: Optional[Any],
@@ -106,7 +111,11 @@ def enqueue_run_execute(
     runtime = cfg.runtime
     entrypoint = cfg.entrypoint
     config_dir = cfg.base_dir
-    adapter_path = getattr(cfg, "adapter", None) or cfg.raw.get("adapter") or cfg.raw.get("adopter")
+    adapter_path = (
+        getattr(cfg, "adapter", None)
+        or cfg.raw.get("adapter")
+        or cfg.raw.get("adopter")
+    )
 
     if os.getenv("UAI_PROCRASTINATE_INLINE") == "1":
         # Inline execution in current process: run logic here and call completion callback
@@ -114,8 +123,15 @@ def enqueue_run_execute(
         result_text: Optional[str] = None
         try:
             obj, _, _ = import_entrypoint(entrypoint, base_dir=config_dir)
-            adapter = get_adapter(runtime, adapter_path=adapter_path, base_dir=config_dir)
-            result_text = adapter.execute(obj, task_id=task_id, initial_payload=initial_payload, config_dir=config_dir)
+            adapter = get_adapter(
+                runtime, adapter_path=adapter_path, base_dir=config_dir
+            )
+            result_text = adapter.execute(
+                obj,
+                task_id=task_id,
+                initial_payload=initial_payload,
+                config_dir=config_dir,
+            )
         except Exception as e:
             status = "failed"
             result_text = f"Error: {e}"

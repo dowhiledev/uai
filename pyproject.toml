@@ -20,6 +20,16 @@ dependencies = [
 [project.scripts]
 uai = "unified_agent_interface:cli"
 
+[dependency-groups]
+dev = [
+    "pytest (>=8.3.5,<9.0.0)",
+    "pytest-cov (>=6.1.1,<7.0.0)",
+    "pytest-asyncio (>=0.26.0,<0.27.0)",
+    "pre-commit (>=4.2.0,<5.0.0)",
+    "ruff>=0.12.2",
+    "pytest-xdist>=3.8.0",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

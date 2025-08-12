@@ -47,4 +47,3 @@ class NextRequest(BaseModel):
 class NextResponse(BaseModel):
     state: dict[str, Any]
     artifacts: List[Artifact]
-

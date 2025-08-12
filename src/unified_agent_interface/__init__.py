@@ -1,4 +1,6 @@
-from .app import get_app  # re-export app factory
+from .app import get_app as get_app  # explicit re-export
+
+__all__ = ["get_app", "cli"]
 
 
 # Typer CLI entrypoint defined in pyproject as `uai`.
@@ -13,6 +15,7 @@ def cli() -> None:  # pragma: no cover
     def _load_dotenv_if_present() -> None:
         try:
             from dotenv import load_dotenv, find_dotenv  # type: ignore
+
             env_path = find_dotenv(usecwd=True)
             if env_path:
                 load_dotenv(env_path)
@@ -37,12 +40,14 @@ def cli() -> None:  # pragma: no cover
 
     def _http_post(url: str, path: str, json_body: dict) -> dict:
         import httpx  # lazy import
+
         r = httpx.post(url.rstrip("/") + path, json=json_body, timeout=60)
         r.raise_for_status()
         return r.json() if r.text else {}
 
     def _http_get(url: str, path: str) -> dict:
         import httpx  # lazy import
+
         r = httpx.get(url.rstrip("/") + path, timeout=60)
         r.raise_for_status()
         return r.json() if r.text else {}
@@ -58,9 +63,15 @@ def cli() -> None:  # pragma: no cover
 
     @run_app.command("create")
     def run_create(
-        input: str = typer.Option(None, "--input", help="Initial run input (string or JSON)"),
-        url: str = typer.Option("http://localhost:8000", "--url", help="Base server URL"),
-        param: t.List[str] = typer.Option(None, "--param", help="Extra param key=value", show_default=False),
+        input: str = typer.Option(
+            None, "--input", help="Initial run input (string or JSON)"
+        ),
+        url: str = typer.Option(
+            "http://localhost:8000", "--url", help="Base server URL"
+        ),
+        param: t.List[str] = typer.Option(
+            None, "--param", help="Extra param key=value", show_default=False
+        ),
     ) -> None:
         params: dict[str, t.Any] = {}
         for p in param or []:
@@ -82,7 +93,9 @@ def cli() -> None:  # pragma: no cover
     @run_app.command("status")
     def run_status(
         task_id: str = typer.Argument(..., help="Task ID"),
-        url: str = typer.Option("http://localhost:8000", "--url", help="Base server URL"),
+        url: str = typer.Option(
+            "http://localhost:8000", "--url", help="Base server URL"
+        ),
     ) -> None:
         _load_dotenv_if_present()
         data = _http_get(url, f"/run/{task_id}")
@@ -92,7 +105,9 @@ def cli() -> None:  # pragma: no cover
     def run_input(
         task_id: str = typer.Argument(..., help="Task ID"),
         text: str = typer.Option(..., "--text", help="Input text"),
-        url: str = typer.Option("http://localhost:8000", "--url", help="Base server URL"),
+        url: str = typer.Option(
+            "http://localhost:8000", "--url", help="Base server URL"
+        ),
     ) -> None:
         _load_dotenv_if_present()
         data = _http_post(url, f"/run/{task_id}/input", {"input": text})
@@ -103,18 +118,28 @@ def cli() -> None:  # pragma: no cover
         task_id: str = typer.Argument(..., help="Task ID"),
         message: str = typer.Option(..., "--message", help="Log message"),
         level: str = typer.Option("INFO", "--level", help="Log level"),
-        url: str = typer.Option("http://localhost:8000", "--url", help="Base server URL"),
+        url: str = typer.Option(
+            "http://localhost:8000", "--url", help="Base server URL"
+        ),
     ) -> None:
         _load_dotenv_if_present()
-        data = _http_post(url, f"/run/{task_id}/logs", {"level": level, "message": message})
+        data = _http_post(
+            url, f"/run/{task_id}/logs", {"level": level, "message": message}
+        )
         _print(data)
 
     @run_app.command("watch")
     def run_watch(
         task_id: str = typer.Argument(..., help="Task ID"),
-        url: str = typer.Option("http://localhost:8000", "--url", help="Base server URL"),
-        interval: float = typer.Option(1.0, "--interval", help="Polling interval seconds"),
-        verbose: bool = typer.Option(True, "--verbose/--quiet", help="Print status changes"),
+        url: str = typer.Option(
+            "http://localhost:8000", "--url", help="Base server URL"
+        ),
+        interval: float = typer.Option(
+            1.0, "--interval", help="Polling interval seconds"
+        ),
+        verbose: bool = typer.Option(
+            True, "--verbose/--quiet", help="Print status changes"
+        ),
     ) -> None:
         """Watch a run, prompting for input when required, until completion."""
         import time as _time
@@ -129,8 +154,17 @@ def cli() -> None:  # pragma: no cover
                 ibuf = data.get("input_buffer") or []
                 prompt = data.get("input_prompt") or None
 
-                if verbose and (status != prev_status or (isinstance(ibuf, list) and prev_len is not None and len(ibuf) != prev_len)):
-                    typer.echo(f"status={status} inputs={len(ibuf) if isinstance(ibuf, list) else 0}")
+                if verbose and (
+                    status != prev_status
+                    or (
+                        isinstance(ibuf, list)
+                        and prev_len is not None
+                        and len(ibuf) != prev_len
+                    )
+                ):
+                    typer.echo(
+                        f"status={status} inputs={len(ibuf) if isinstance(ibuf, list) else 0}"
+                    )
                     if prompt and status == "waiting_input":
                         typer.echo(f"input_prompt: {prompt}")
                 prev_status = status
@@ -154,7 +188,9 @@ def cli() -> None:  # pragma: no cover
 
     @chat_app.command("create")
     def chat_create(
-        url: str = typer.Option("http://localhost:8000", "--url", help="Base server URL"),
+        url: str = typer.Option(
+            "http://localhost:8000", "--url", help="Base server URL"
+        ),
     ) -> None:
         _load_dotenv_if_present()
         data = _http_post(url, "/chat/", {})
@@ -164,7 +200,9 @@ def cli() -> None:  # pragma: no cover
     def chat_send(
         session_id: str = typer.Argument(..., help="Chat session ID"),
         text: str = typer.Option(..., "--text", help="User message"),
-        url: str = typer.Option("http://localhost:8000", "--url", help="Base server URL"),
+        url: str = typer.Option(
+            "http://localhost:8000", "--url", help="Base server URL"
+        ),
     ) -> None:
         _load_dotenv_if_present()
         data = _http_post(url, f"/chat/{session_id}", {"user_input": text})
@@ -173,7 +211,9 @@ def cli() -> None:  # pragma: no cover
     @chat_app.command("messages")
     def chat_messages(
         session_id: str = typer.Argument(..., help="Chat session ID"),
-        url: str = typer.Option("http://localhost:8000", "--url", help="Base server URL"),
+        url: str = typer.Option(
+            "http://localhost:8000", "--url", help="Base server URL"
+        ),
     ) -> None:
         _load_dotenv_if_present()
         data = _http_get(url, f"/chat/{session_id}/messages")
@@ -189,12 +229,15 @@ def cli() -> None:  # pragma: no cover
 
     def _install_schema_for_app(papp: procrastinate.App) -> None:
         import typer as _typer
+
         # Try connector.install first
         with papp.open():
             papp.schema_manager.apply_schema()
             _typer.echo("Procrastinate schema installed (schema_manager.apply_schema)")
             return
-        _typer.echo("Procrastinate schema installation failed (schema_manager.apply_schema)")
+        _typer.echo(
+            "Procrastinate schema installation failed (schema_manager.apply_schema)"
+        )
 
     @worker_app.command("start")
     def worker_start() -> None:
@@ -252,7 +295,7 @@ def cli() -> None:  # pragma: no cover
             ok = False
             err = e
         if ok:
-            typer.echo(f"Connection OK")
+            typer.echo("Connection OK")
         else:
             typer.echo(f"Connection FAILED: {err}")
 

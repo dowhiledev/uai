@@ -1,18 +1,15 @@
 from dotenv import load_dotenv
-
-load_dotenv()
-
-
 from langchain.chains.llm import LLMChain
 from langchain.memory import ConversationBufferWindowMemory
 from langchain_core.messages import SystemMessage
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.prompts.chat import (
     ChatPromptTemplate,
     HumanMessagePromptTemplate,
     MessagesPlaceholder,
 )
 from langchain_openai import ChatOpenAI
+
+load_dotenv()
 
 prompt = ChatPromptTemplate(
     [

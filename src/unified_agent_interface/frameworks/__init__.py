@@ -18,7 +18,9 @@ _adapters: Dict[str, RuntimeAdapter] = {
 _dynamic_cache: Dict[Tuple[str, str], RuntimeAdapter] = {}
 
 
-def get_adapter(runtime: str, adapter_path: Optional[str] = None, base_dir: Optional[str] = None) -> RuntimeAdapter:
+def get_adapter(
+    runtime: str, adapter_path: Optional[str] = None, base_dir: Optional[str] = None
+) -> RuntimeAdapter:
     rt = (runtime or "").lower()
     # If a custom adapter is specified, prefer it
     if adapter_path:
@@ -37,7 +39,9 @@ def get_adapter(runtime: str, adapter_path: Optional[str] = None, base_dir: Opti
             else:
                 inst = obj
         except Exception as e:  # pragma: no cover - defensive
-            raise TypeError(f"Failed to instantiate custom adapter '{adapter_path}': {e}")
+            raise TypeError(
+                f"Failed to instantiate custom adapter '{adapter_path}': {e}"
+            )
         # Validate protocol at runtime as well
         if not isinstance(inst, RuntimeAdapter):
             raise TypeError("Custom adapter must inherit and implement RuntimeAdapter")

@@ -35,16 +35,22 @@ class LangChainAdapter(RuntimeAdapter):
             inputs = {}
 
         # Prefer LangChain Runnable protocol: .invoke
-        if hasattr(entrypoint_obj, "invoke") and callable(getattr(entrypoint_obj, "invoke")):
+        if hasattr(entrypoint_obj, "invoke") and callable(
+            getattr(entrypoint_obj, "invoke")
+        ):
             result = entrypoint_obj.invoke(inputs)
-        elif hasattr(entrypoint_obj, "run") and callable(getattr(entrypoint_obj, "run")):
+        elif hasattr(entrypoint_obj, "run") and callable(
+            getattr(entrypoint_obj, "run")
+        ):
             # Legacy LLMChain interface
             try:
                 result = entrypoint_obj.run(inputs)
             except TypeError:
                 result = entrypoint_obj.run(initial_payload)
         else:
-            raise TypeError("Unsupported LangChain entrypoint: expected a Runnable or LLMChain")
+            raise TypeError(
+                "Unsupported LangChain entrypoint: expected a Runnable or LLMChain"
+            )
 
         return self._normalize_result(result)
 
@@ -93,20 +99,24 @@ class LangChainAdapter(RuntimeAdapter):
     def __init__(self) -> None:
         self._instances: Dict[Tuple[str, str, str], Any] = {}
 
-    def _ensure_session_instance(self, entrypoint_obj: Any, config_dir: str | None, session_id: str) -> Any:
+    def _ensure_session_instance(
+        self, entrypoint_obj: Any, config_dir: str | None, session_id: str
+    ) -> Any:
         # When given a string entrypoint, import a fresh instance per (config_dir, entrypoint, session_id)
         if isinstance(entrypoint_obj, str):
             key = (str(config_dir or ""), entrypoint_obj, session_id)
             if key in self._instances:
                 return self._instances[key]
-            obj, mod_name, attr_path = import_entrypoint(entrypoint_obj, base_dir=config_dir)
+            obj, mod_name, attr_path = import_entrypoint(
+                entrypoint_obj, base_dir=config_dir
+            )
             try:
                 if mod_name in sys.modules:
                     m = sys.modules[mod_name]
                     importlib.reload(m)
                     # Re-resolve attribute after reload
                     obj2 = m
-                    for part in attr_path.split('.'):
+                    for part in attr_path.split("."):
                         obj2 = getattr(obj2, part)
                     obj = obj2
             except Exception:

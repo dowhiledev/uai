@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import time
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 
@@ -13,7 +13,11 @@ def server_base_url() -> str:
 
 def post_wait(task_id: str, prompt: str) -> None:
     try:
-        httpx.post(f"{server_base_url()}/run/{task_id}/wait", json={"prompt": prompt}, timeout=30)
+        httpx.post(
+            f"{server_base_url()}/run/{task_id}/wait",
+            json={"prompt": prompt},
+            timeout=30,
+        )
     except Exception:
         pass
 
@@ -28,7 +32,9 @@ def get_status(task_id: str) -> dict[str, Any] | None:
     return None
 
 
-def poll_for_next_input(task_id: str, baseline_index: int, timeout_seconds: int = 300) -> tuple[str, int]:
+def poll_for_next_input(
+    task_id: str, baseline_index: int, timeout_seconds: int = 300
+) -> tuple[str, int]:
     """Poll the server for a new input. Returns (value, new_index)."""
     deadline = time.time() + timeout_seconds
     while time.time() < deadline:
@@ -40,4 +46,3 @@ def poll_for_next_input(task_id: str, baseline_index: int, timeout_seconds: int 
                 return value, baseline_index + 1
         time.sleep(0.5)
     return "", baseline_index
-

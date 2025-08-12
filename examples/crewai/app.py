@@ -1,16 +1,18 @@
 from dotenv import load_dotenv
-
-load_dotenv()
-
 from crewai import Agent, Task, Crew, Process
 from typing import Type
 from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
 from langchain_community.tools import DuckDuckGoSearchResults
 
+load_dotenv()
+
+
 class MyCustomDuckDuckGoToolInput(BaseModel):
     """Input schema for MyCustomDuckDuckGoTool."""
+
     query: str = Field(..., description="URL to search for.")
+
 
 class MyCustomDuckDuckGoTool(BaseTool):
     name: str = "DuckDuckGo Search Tool"
@@ -22,37 +24,38 @@ class MyCustomDuckDuckGoTool(BaseTool):
         response = duckduckgo_tool.invoke(query)
         return response
 
+
 search_tool = MyCustomDuckDuckGoTool()
 
 # Define Agents
 researcher = Agent(
-    role='Senior Research Analyst',
-    goal='Uncover cutting-edge developments in AI and data science',
+    role="Senior Research Analyst",
+    goal="Uncover cutting-edge developments in AI and data science",
     backstory="Expert at identifying emerging trends; presents actionable insights.",
     verbose=True,
     allow_delegation=False,
-    tools=[search_tool]
+    tools=[search_tool],
 )
 
 writer = Agent(
-    role='Tech Content Strategist',
-    goal='Craft compelling content on tech advancements',
+    role="Tech Content Strategist",
+    goal="Craft compelling content on tech advancements",
     backstory="Renowned strategist who transforms complex concepts into compelling narratives.",
     verbose=True,
-    allow_delegation=True
+    allow_delegation=True,
 )
 
 # Define Tasks
 research_task = Task(
     description="Research recent trends in AI.",
     expected_output="A summary of latest AI developments.",
-    agent=researcher
+    agent=researcher,
 )
 
 writing_task = Task(
     description="Write a blog post based on the research summary.",
     expected_output="A well-structured tech blog post.",
-    agent=writer
+    agent=writer,
 )
 
 # Define Crew
@@ -60,7 +63,7 @@ crew = Crew(
     agents=[researcher, writer],
     tasks=[research_task, writing_task],
     process=Process.sequential,
-    verbose=True
+    verbose=True,
 )
 
 # # Kick off

@@ -4,7 +4,7 @@ import threading
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Any
 
-from ...config import AgentConfig, import_entrypoint
+from ...config import AgentConfig
 from ...queue import enqueue_run_execute
 from ...models.run import RunTask
 from .run_base import RunAgent
@@ -34,21 +34,28 @@ class ConfiguredRunAgent(RunAgent):
     def on_create(self, task: RunTask, initial_input: Any | None) -> None:
         task.status = "running"
         task.params["agent"] = self.name()
-        task.estimated_completion_time = datetime.utcnow() + timedelta(seconds=self._eta_seconds)
+        task.estimated_completion_time = datetime.utcnow() + timedelta(
+            seconds=self._eta_seconds
+        )
 
         # Defer execution to Procrastinate worker (or inline in tests)
         try:
+
             def _inline_complete(status: str, result_text: Optional[str]):
                 task.status = status
                 task.result_text = result_text
                 task.estimated_completion_time = None
 
-            enqueue_run_execute(task_id=task.id, initial_payload=initial_input, inline_complete=_inline_complete)
+            enqueue_run_execute(
+                task_id=task.id,
+                initial_payload=initial_input,
+                inline_complete=_inline_complete,
+            )
         except Exception as e:
             task.status = "failed"
             task.result_text = f"Queue error: {e}"
             task.estimated_completion_time = None
-            
+
     def on_status(self, task: RunTask) -> None:
         t = self._threads.get(task.id)
         if t and not t.is_alive() and task.status == "running":

@@ -21,7 +21,7 @@ def _read_toml(path: Path) -> dict:
         import tomllib  # type: ignore
     except Exception:  # pragma: no cover - fallback if needed
         import tomli as tomllib  # type: ignore
-    with path.open('rb') as f:
+    with path.open("rb") as f:
         return tomllib.load(f)
 
 
@@ -37,11 +37,11 @@ def load_kosmos_agent_config(path: Optional[str] = None) -> AgentConfig:
     candidates = []
     if path:
         candidates.append(Path(path))
-    env_path = os.getenv('KOSMOS_TOML')
+    env_path = os.getenv("KOSMOS_TOML")
     if env_path:
         candidates.append(Path(env_path))
-    candidates.append(Path('kosmos.toml'))
-    candidates.append(Path('examples') / 'kosmos.toml')
+    candidates.append(Path("kosmos.toml"))
+    candidates.append(Path("examples") / "kosmos.toml")
 
     chosen: Optional[Path] = None
     for p in candidates:
@@ -49,15 +49,17 @@ def load_kosmos_agent_config(path: Optional[str] = None) -> AgentConfig:
             chosen = p
             break
     if not chosen:
-        raise FileNotFoundError('kosmos.toml not found in expected locations')
+        raise FileNotFoundError("kosmos.toml not found in expected locations")
 
     data = _read_toml(chosen)
-    agent_section = data.get('agent') or {}
-    runtime = agent_section.get('runtime')
-    entrypoint = agent_section.get('entrypoint')
-    adapter = agent_section.get('adapter') or agent_section.get('adopter')
+    agent_section = data.get("agent") or {}
+    runtime = agent_section.get("runtime")
+    entrypoint = agent_section.get("entrypoint")
+    adapter = agent_section.get("adapter") or agent_section.get("adopter")
     if not runtime or not entrypoint:
-        raise ValueError('agent.runtime and agent.entrypoint must be set in kosmos.toml')
+        raise ValueError(
+            "agent.runtime and agent.entrypoint must be set in kosmos.toml"
+        )
     return AgentConfig(
         runtime=str(runtime),
         entrypoint=str(entrypoint),
@@ -67,15 +69,18 @@ def load_kosmos_agent_config(path: Optional[str] = None) -> AgentConfig:
     )
 
 
-def import_entrypoint(entrypoint: str, base_dir: Optional[str] = None) -> Tuple[Any, str, str]:
+def import_entrypoint(
+    entrypoint: str, base_dir: Optional[str] = None
+) -> Tuple[Any, str, str]:
     """Import `module:attr` and return (obj, module_name, attr_name)."""
-    if ':' not in entrypoint:
+    if ":" not in entrypoint:
         raise ValueError("entrypoint must be in 'module:attr' format")
-    mod_name, attr_path = entrypoint.split(':', 1)
+    mod_name, attr_path = entrypoint.split(":", 1)
     mod = None
     # Prefer package import if base_dir is a package
     if base_dir and (Path(base_dir) / "__init__.py").exists() and "." not in mod_name:
         import sys
+
         package_name = Path(base_dir).name
         sys.path.insert(0, str(Path(base_dir).parent))
         try:
@@ -99,10 +104,11 @@ def import_entrypoint(entrypoint: str, base_dir: Optional[str] = None) -> Tuple[
     if mod is None:
         # Try file-based import relative to base_dir, then CWD
         from importlib.util import spec_from_file_location, module_from_spec
+
         paths = []
         if base_dir:
-            paths.append(Path(base_dir) / (mod_name.replace('.', os.sep) + '.py'))
-        paths.append(Path(mod_name.replace('.', os.sep) + '.py'))
+            paths.append(Path(base_dir) / (mod_name.replace(".", os.sep) + ".py"))
+        paths.append(Path(mod_name.replace(".", os.sep) + ".py"))
         for candidate in paths:
             if candidate.exists():
                 spec = spec_from_file_location(mod_name, candidate)
@@ -112,8 +118,10 @@ def import_entrypoint(entrypoint: str, base_dir: Optional[str] = None) -> Tuple[
                     mod = m
                     break
     if mod is None:
-        raise ModuleNotFoundError(f"Could not import '{mod_name}' from entrypoint '{entrypoint}'")
+        raise ModuleNotFoundError(
+            f"Could not import '{mod_name}' from entrypoint '{entrypoint}'"
+        )
     obj = mod
-    for part in attr_path.split('.'):
+    for part in attr_path.split("."):
         obj = getattr(obj, part)
     return obj, mod_name, attr_path

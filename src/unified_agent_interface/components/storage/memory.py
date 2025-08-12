@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 from ...models.chat import Artifact, ChatSession, Message
@@ -83,7 +82,9 @@ class InMemoryStorage:
         task = self._runs.get(task_id)
         return None if task is None else list(task.artifacts)
 
-    def get_single_run_artifact(self, task_id: str, artifact_id: str) -> Optional[RunArtifact]:
+    def get_single_run_artifact(
+        self, task_id: str, artifact_id: str
+    ) -> Optional[RunArtifact]:
         task = self._runs.get(task_id)
         if task is None:
             return None

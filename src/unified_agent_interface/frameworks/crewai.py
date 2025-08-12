@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import builtins
-from typing import Any, Optional
+from typing import Any
 
 from .base import RuntimeAdapter
 from .utils import get_status, poll_for_next_input, post_wait
