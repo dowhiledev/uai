@@ -3,6 +3,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ..components.agents.base import Agent
+from ..components.agents.chat_configured import ConfiguredChatAgent
 from ..components.storage.base import Storage
 from ..models.chat import (
     Artifact,
@@ -21,19 +22,20 @@ def get_storage(req: Request) -> Storage:
     return req.app.state.storage
 
 
-def get_agent() -> Agent:
-    # Chat agent loading via kosmos is not implemented yet.
-    # Placeholder to keep API surface; returns 501 on use.
-    class _NotImplementedAgent:
-        def respond(self, state: dict, user_input: str):
-            raise HTTPException(status_code=501, detail="Chat agents are not configured")
-
-    return _NotImplementedAgent()  # type: ignore[return-value]
+def get_agent(req: Request) -> Agent:
+    # Return app-configured chat agent
+    agent = getattr(req.app.state, "chat_agent", None)
+    if agent is None:
+        raise HTTPException(status_code=501, detail="Chat agent not configured")
+    return agent
 
 
 @router.post("/next", response_model=NextResponse)
-def next_step(payload: NextRequest, agent: Agent = Depends(get_agent)) -> NextResponse:
-    state, artifacts, reply = agent.respond(payload.state or {}, payload.user_input or "")
+def next_step(payload: NextRequest, req: Request, agent: Agent = Depends(get_agent)) -> NextResponse:
+    # Stateless chat is not available for LangChain; require a session
+    if isinstance(agent, ConfiguredChatAgent) and agent.runtime().lower() == "langchain":
+        raise HTTPException(status_code=400, detail="Stateless chat is not supported for LangChain. Create a session first.")
+    state, artifacts, _ = agent.next(payload.state or {}, payload.user_input or "")
     return NextResponse(state=state, artifacts=artifacts)
 
 
@@ -58,8 +60,8 @@ def send_message(
     user_msg = Message(role="user", content=payload.user_input or "")
     storage.add_message(session_id, user_msg)
 
-    # Agent response (stubbed)
-    state, artifacts, reply = agent.respond(payload.state or {}, payload.user_input or "")
+    # Agent response (sync; waits and returns reply)
+    artifacts, reply = agent.respond(session_id, payload.user_input or "")
     if reply:
         storage.add_message(session_id, reply)
 
@@ -67,7 +69,7 @@ def send_message(
         storage.add_artifact(session_id, art)
 
     return {
-        "state": state,
+        "state": {},
         "artifacts": artifacts,
         "messages": [user_msg, reply] if reply else [user_msg],
     }
