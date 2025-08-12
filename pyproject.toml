@@ -1,7 +1,7 @@
 [project]
 name = "unified-agent-interface"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.1.1"
+description = "A unified interface for integrating various AI agents with a common protocol."
 readme = "README.md"
 authors = [
     { name = "chandralegend", email = "irugalbandarachandra@gmail.com" }

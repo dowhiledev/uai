@@ -34,6 +34,10 @@ class InMemoryStorage:
         return None if session is None else list(session.messages)
 
     def add_artifact(self, session_id: str, artifact: Artifact) -> None:
+        if not artifact.id:
+            import uuid as _uuid
+
+            artifact.id = str(_uuid.uuid4())
         self._chats[session_id].artifacts.append(artifact)
 
     def get_artifacts(self, session_id: str) -> Optional[List[Artifact]]:
@@ -76,6 +80,10 @@ class InMemoryStorage:
         self._runs[task_id].logs.append(log)
 
     def add_run_artifact(self, task_id: str, artifact: RunArtifact) -> None:
+        if not artifact.id:
+            import uuid as _uuid
+
+            artifact.id = str(_uuid.uuid4())
         self._runs[task_id].artifacts.append(artifact)
 
     def get_run_artifacts(self, task_id: str) -> Optional[List[RunArtifact]]:

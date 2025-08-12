@@ -128,6 +128,31 @@ def cli() -> None:  # pragma: no cover
         )
         _print(data)
 
+    @run_app.command("cancel")
+    def run_cancel(
+        task_id: str = typer.Argument(..., help="Task ID"),
+        url: str = typer.Option(
+            "http://localhost:8000", "--url", help="Base server URL"
+        ),
+    ) -> None:
+        """Cancel/stop a run (deletes it from in-memory storage)."""
+        _load_dotenv_if_present()
+        import httpx as _httpx
+
+        r = _httpx.delete(url.rstrip("/") + f"/run/{task_id}", timeout=30)
+        r.raise_for_status()
+        _print(r.json() if r.text else {"ok": True})
+
+    @run_app.command("stop")
+    def run_stop(
+        task_id: str = typer.Argument(..., help="Task ID"),
+        url: str = typer.Option(
+            "http://localhost:8000", "--url", help="Base server URL"
+        ),
+    ) -> None:
+        """Alias for cancel."""
+        run_cancel(task_id=task_id, url=url)
+
     @run_app.command("watch")
     def run_watch(
         task_id: str = typer.Argument(..., help="Task ID"),

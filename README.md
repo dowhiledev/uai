@@ -16,6 +16,7 @@ CLI Overview
 - `uai run status <task_id>`: fetches current run status.
 - `uai run input <task_id> --text '<reply>'`: provides human input to a waiting run.
 - `uai run logs <task_id> --message '<msg>' [--level INFO]`: appends a log entry.
+- `uai run cancel <task_id>` / `uai run stop <task_id>`: cancels/stops a run (deletes it from in-memory storage).
 - `uai worker install|check|start`: installs schema, checks DB, and starts the worker.
  - `uai run watch <task_id>`: watches status; when `waiting_input`, prompts for input and resumes automatically.
 
@@ -28,6 +29,10 @@ Project Structure
 - `src/unified_agent_interface/frameworks/`: Runtime adapters (`crewai`, `langchain`, `callable`).
 - `src/unified_agent_interface/queue.py`: Procrastinate integration and job dispatch.
 - `examples/`: Callable sample and CrewAI examples (with and without human input).
+
+Changelog
+---------
+- See `CHANGELOG.md` for release notes.
 
 Agent Configuration
 -------------------
@@ -63,6 +68,8 @@ Examples
 - CrewAI (basic): `examples/crewai/main.py` with `examples/crewai/kosmos.toml`.
 - CrewAI (human input): `examples/crewai_user_input/main.py` with `examples/crewai_user_input/kosmos.toml`.
 - LangChain (LLMChain): `examples/langchain/app.py` with `examples/langchain/kosmos.toml`.
+- LangChain with instrumentation (logs around LLM calls): set `KOSMOS_TOML=examples/langchain/kosmos_patched.toml` to use `app:run_patched` which patches `LLMChain.invoke` and `ChatOpenAI.invoke` via `instrumentation.patch_many`.
+- CrewAI with custom logs/input detection (callbacks): `examples/crewai_custom_log_input_detection/app.py` with `examples/crewai_custom_log_input_detection/kosmos.toml`.
 
 Run API
 -------
@@ -70,6 +77,7 @@ Run API
 - `GET /run/{id}`: returns status with fields: `status`, `result_text`, `logs`, `artifacts`, `input_prompt`, `input_buffer`.
 - `POST /run/{id}/input` (body: `{ "input": "..." }`): appends to `input_buffer` and resumes a waiting run.
 - `POST /run/{id}/logs` (body: `{ level, message }`): appends a log.
+- `POST /run/{id}/artifacts` (body: `{ id?, type?, name?, uri?, metadata? }`): adds an artifact to the run (server generates `id` if missing).
 - `POST /run/{id}/complete` (internal): worker callback to finalize a run.
 
 Chat API
@@ -78,6 +86,7 @@ Chat API
 - `POST /chat/{session_id}`: sends a user message; responds after generating the assistant reply with `{ state, artifacts, messages }`.
 - `GET /chat/{session_id}/messages`: lists messages in the session.
 - `DELETE /chat/{session_id}`: deletes the session.
+- `POST /chat/{session_id}/artifacts` (body: `{ id?, type?, name?, uri?, metadata? }`): adds an artifact to the session (server generates `id` if missing).
 
 Background Jobs (Procrastinate)
 -------------------------------
@@ -107,3 +116,48 @@ Notes
 -----
 - Storage is in-memory for now; swap with a persistent backend (Postgres/Redis) for multi-process reliability. The worker currently finalizes runs via a callback to `POST /run/{id}/complete`.
 - LangChain chat requires sessions: stateless `POST /chat/next` is not supported and returns 400. UAI maintains a separate chain instance per session to isolate memory.
+
+Developer Utilities
+-------------------
+- Helper functions for user adapters/agents in `unified_agent_interface.frameworks.utils`:
+  - `post_wait(task_id, prompt)`: mark run as waiting for input with a prompt.
+  - `get_status(task_id)`: get run status JSON.
+  - `poll_for_next_input(task_id, baseline_index, timeout_seconds=300)`: poll until new input arrives; returns `(value, new_index)`.
+  - `request_human_input(task_id, prompt="...", baseline_index=None)`: convenience wrapper that posts wait and polls; returns `(value, new_index)`.
+  - `post_log(task_id, level, message)`: append a log entry to a run.
+  - `add_run_artifact(task_id, artifact_dict)`: add an artifact to a run.
+  - `add_chat_artifact(session_id, artifact_dict)`: add an artifact to a chat session.
+ - Instrumentation utilities in `unified_agent_interface.utils`:
+   - `patch_log(target, label=None, capture_return=False)`: persistently patch a function or method (callable or `"module:attr"`) to auto-log calls using `post_log`.
+   - `unpatch_log(target)`: restore a target patched via `patch_log`.
+  - `patch_function(target, label=None, capture_return=False)`: temporary/context-managed patch.
+  - `patch_many(*targets, label=None, capture_return=False)`: patch multiple targets within one context.
+
+Runtime Context
+---------------
+- UAI tracks the current run (`task_id`) and chat session (`session_id`) during execution so helpers can be called without IDs:
+  - `unified_agent_interface.runtime.task_context(task_id)` and `.session_context(session_id)` are used internally; helpers fall back to these when `task_id`/`session_id` is omitted.
+  - E.g., `post_log(None, "INFO", "message")` and `request_human_input(None, "prompt")` will route to the current run.
+
+These utilities let custom adapters define their own session management and input-waiting behavior.
+- Example (LangChain):
+  - `from langchain_openai import ChatOpenAI`
+  - `from unified_agent_interface.utils import patch_log`
+  - `patch_log(ChatOpenAI.invoke, capture_return=True)`
+  - Calls to `ChatOpenAI.invoke` will now be logged to the current run.
+
+Artifacts Tracking
+------------------
+- Auto-collect file artifacts created during a run or chat turn.
+- Enable via config or env:
+  - kosmos.toml: `[agent.artifacts] tracking = "auto"` (optional: `base_dir = "..."`)
+  - env: `UAI_ARTIFACTS=auto` (overrides config)
+  - filters: `UAI_ARTIFACTS_INCLUDE="**/*.md,**/*.png"`, `UAI_ARTIFACTS_EXCLUDE="**/.git/**"`, `UAI_ARTIFACTS_BASEDIR=/path/to/repo`
+- How it works:
+  - UAI registers a Python audit hook and uses contextvars to attribute file creations to the current run/session.
+  - When enabled, opening files with create/append modes (e.g., `w`, `x`, `a`) or `os.O_CREAT` is recorded as artifacts.
+  - Artifacts are posted immediately to `/run/{id}/artifacts` or `/chat/{session}/artifacts` and deduplicated per context.
+- Notes:
+  - Off by default; opt-in via config/env.
+  - You can still add artifacts explicitly with `add_run_artifact` / `add_chat_artifact`.
+  - For best results, write outputs inside a known base directory and use include/exclude globs.

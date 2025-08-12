@@ -42,6 +42,10 @@ def get_procrastinate_app():  # pragma: no cover - thin wrapper
         runtime: str,
         entrypoint: str,
         adapter_path: Optional[str] = None,
+        artifacts_enabled: Optional[bool] = None,
+        artifacts_include: Optional[list[str]] = None,
+        artifacts_exclude: Optional[list[str]] = None,
+        artifacts_base_dir: Optional[str] = None,
         config_dir: Optional[str] = None,
         **kwargs,
     ) -> None:
@@ -67,12 +71,24 @@ def get_procrastinate_app():  # pragma: no cover - thin wrapper
             adapter = get_adapter(
                 runtime, adapter_path=adapter_path, base_dir=config_dir
             )
-            result_text = adapter.execute(
-                obj,
-                task_id=task_id,
-                initial_payload=initial_input,
-                config_dir=config_dir,
-            )
+            from .runtime import task_context
+            from .artifacts import artifact_tracking_context
+
+            with (
+                task_context(task_id),
+                artifact_tracking_context(
+                    bool(artifacts_enabled),
+                    include=artifacts_include,
+                    exclude=artifacts_exclude,
+                    base_dir=artifacts_base_dir,
+                ),
+            ):
+                result_text = adapter.execute(
+                    obj,
+                    task_id=task_id,
+                    initial_payload=initial_input,
+                    config_dir=config_dir,
+                )
         except Exception as e:  # pragma: no cover - integration error path
             import traceback as _tb
 
@@ -116,6 +132,27 @@ def enqueue_run_execute(
         or cfg.raw.get("adapter")
         or cfg.raw.get("adopter")
     )
+    arts = cfg.raw.get("artifacts") or {}
+    env_mode = os.getenv("UAI_ARTIFACTS")
+    artifacts_enabled = (
+        True if (str(arts.get("tracking") or "").lower() == "auto") else False
+    )
+    if env_mode is not None:
+        artifacts_enabled = env_mode.lower() == "auto"
+    include_env = os.getenv("UAI_ARTIFACTS_INCLUDE")
+    exclude_env = os.getenv("UAI_ARTIFACTS_EXCLUDE")
+    base_env = os.getenv("UAI_ARTIFACTS_BASEDIR")
+    artifacts_include = (
+        [s.strip() for s in include_env.split(",") if s.strip()]
+        if include_env
+        else None
+    )
+    artifacts_exclude = (
+        [s.strip() for s in exclude_env.split(",") if s.strip()]
+        if exclude_env
+        else None
+    )
+    artifacts_base_dir = str(base_env or arts.get("base_dir") or config_dir)
 
     if os.getenv("UAI_PROCRASTINATE_INLINE") == "1":
         # Inline execution in current process: run logic here and call completion callback
@@ -126,12 +163,24 @@ def enqueue_run_execute(
             adapter = get_adapter(
                 runtime, adapter_path=adapter_path, base_dir=config_dir
             )
-            result_text = adapter.execute(
-                obj,
-                task_id=task_id,
-                initial_payload=initial_payload,
-                config_dir=config_dir,
-            )
+            from .runtime import task_context
+            from .artifacts import artifact_tracking_context
+
+            with (
+                task_context(task_id),
+                artifact_tracking_context(
+                    bool(artifacts_enabled),
+                    include=artifacts_include,
+                    exclude=artifacts_exclude,
+                    base_dir=artifacts_base_dir,
+                ),
+            ):
+                result_text = adapter.execute(
+                    obj,
+                    task_id=task_id,
+                    initial_payload=initial_payload,
+                    config_dir=config_dir,
+                )
         except Exception as e:
             status = "failed"
             result_text = f"Error: {e}"
@@ -163,6 +212,10 @@ def enqueue_run_execute(
             runtime=runtime,
             entrypoint=entrypoint,
             adapter_path=adapter_path,
+            artifacts_enabled=artifacts_enabled,
+            artifacts_include=artifacts_include,
+            artifacts_exclude=artifacts_exclude,
+            artifacts_base_dir=artifacts_base_dir,
             config_dir=config_dir,
         )
     return str(job_id)
