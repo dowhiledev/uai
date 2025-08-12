@@ -130,8 +130,8 @@ Developer Utilities
  - Instrumentation utilities in `unified_agent_interface.utils`:
    - `patch_log(target, label=None, capture_return=False)`: persistently patch a function or method (callable or `"module:attr"`) to auto-log calls using `post_log`.
    - `unpatch_log(target)`: restore a target patched via `patch_log`.
-   - `patch_function(target, label=None, capture_return=False)`: temporary/context-managed patch.
-   - `patch_many(*targets, label=None, capture_return=False)`: patch multiple targets within one context.
+  - `patch_function(target, label=None, capture_return=False)`: temporary/context-managed patch.
+  - `patch_many(*targets, label=None, capture_return=False)`: patch multiple targets within one context.
 
 Runtime Context
 ---------------
@@ -145,3 +145,19 @@ These utilities let custom adapters define their own session management and inpu
   - `from unified_agent_interface.utils import patch_log`
   - `patch_log(ChatOpenAI.invoke, capture_return=True)`
   - Calls to `ChatOpenAI.invoke` will now be logged to the current run.
+
+Artifacts Tracking
+------------------
+- Auto-collect file artifacts created during a run or chat turn.
+- Enable via config or env:
+  - kosmos.toml: `[agent.artifacts] tracking = "auto"` (optional: `base_dir = "..."`)
+  - env: `UAI_ARTIFACTS=auto` (overrides config)
+  - filters: `UAI_ARTIFACTS_INCLUDE="**/*.md,**/*.png"`, `UAI_ARTIFACTS_EXCLUDE="**/.git/**"`, `UAI_ARTIFACTS_BASEDIR=/path/to/repo`
+- How it works:
+  - UAI registers a Python audit hook and uses contextvars to attribute file creations to the current run/session.
+  - When enabled, opening files with create/append modes (e.g., `w`, `x`, `a`) or `os.O_CREAT` is recorded as artifacts.
+  - Artifacts are posted immediately to `/run/{id}/artifacts` or `/chat/{session}/artifacts` and deduplicated per context.
+- Notes:
+  - Off by default; opt-in via config/env.
+  - You can still add artifacts explicitly with `add_run_artifact` / `add_chat_artifact`.
+  - For best results, write outputs inside a known base directory and use include/exclude globs.
