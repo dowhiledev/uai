@@ -16,6 +16,7 @@ CLI Overview
 - `uai run status <task_id>`: fetches current run status.
 - `uai run input <task_id> --text '<reply>'`: provides human input to a waiting run.
 - `uai run logs <task_id> --message '<msg>' [--level INFO]`: appends a log entry.
+- `uai run cancel <task_id>` / `uai run stop <task_id>`: cancels/stops a run (deletes it from in-memory storage).
 - `uai worker install|check|start`: installs schema, checks DB, and starts the worker.
  - `uai run watch <task_id>`: watches status; when `waiting_input`, prompts for input and resumes automatically.
 
@@ -74,6 +75,7 @@ Run API
 - `GET /run/{id}`: returns status with fields: `status`, `result_text`, `logs`, `artifacts`, `input_prompt`, `input_buffer`.
 - `POST /run/{id}/input` (body: `{ "input": "..." }`): appends to `input_buffer` and resumes a waiting run.
 - `POST /run/{id}/logs` (body: `{ level, message }`): appends a log.
+- `POST /run/{id}/artifacts` (body: `{ id?, type?, name?, uri?, metadata? }`): adds an artifact to the run (server generates `id` if missing).
 - `POST /run/{id}/complete` (internal): worker callback to finalize a run.
 
 Chat API
@@ -82,6 +84,7 @@ Chat API
 - `POST /chat/{session_id}`: sends a user message; responds after generating the assistant reply with `{ state, artifacts, messages }`.
 - `GET /chat/{session_id}/messages`: lists messages in the session.
 - `DELETE /chat/{session_id}`: deletes the session.
+- `POST /chat/{session_id}/artifacts` (body: `{ id?, type?, name?, uri?, metadata? }`): adds an artifact to the session (server generates `id` if missing).
 
 Background Jobs (Procrastinate)
 -------------------------------
@@ -111,3 +114,16 @@ Notes
 -----
 - Storage is in-memory for now; swap with a persistent backend (Postgres/Redis) for multi-process reliability. The worker currently finalizes runs via a callback to `POST /run/{id}/complete`.
 - LangChain chat requires sessions: stateless `POST /chat/next` is not supported and returns 400. UAI maintains a separate chain instance per session to isolate memory.
+
+Developer Utilities
+-------------------
+- Helper functions for user adapters/agents in `unified_agent_interface.frameworks.utils`:
+  - `post_wait(task_id, prompt)`: mark run as waiting for input with a prompt.
+  - `get_status(task_id)`: get run status JSON.
+  - `poll_for_next_input(task_id, baseline_index, timeout_seconds=300)`: poll until new input arrives; returns `(value, new_index)`.
+  - `request_human_input(task_id, prompt="...", baseline_index=None)`: convenience wrapper that posts wait and polls; returns `(value, new_index)`.
+  - `post_log(task_id, level, message)`: append a log entry to a run.
+  - `add_run_artifact(task_id, artifact_dict)`: add an artifact to a run.
+  - `add_chat_artifact(session_id, artifact_dict)`: add an artifact to a chat session.
+
+These utilities let custom adapters define their own session management and input-waiting behavior.

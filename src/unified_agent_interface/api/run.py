@@ -1,4 +1,5 @@
 from typing import List
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -93,6 +94,21 @@ def get_run_artifact(
     art = storage.get_single_run_artifact(task_id, artifact_id)
     if art is None:
         raise HTTPException(status_code=404, detail="Artifact not found")
+    return art
+
+
+@router.post("/{task_id}/artifacts", response_model=RunArtifact)
+def add_run_artifact(
+    task_id: str, payload: dict, storage: Storage = Depends(get_storage)
+) -> RunArtifact:
+    task = storage.get_run(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    data = dict(payload or {})
+    if not data.get("id"):
+        data["id"] = str(uuid.uuid4())
+    art = RunArtifact(**data)
+    storage.add_run_artifact(task_id, art)
     return art
 
 

@@ -1,4 +1,5 @@
 from typing import List
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -118,4 +119,19 @@ def get_artifact(
     art = storage.get_artifact(session_id, artifact_id)
     if art is None:
         raise HTTPException(status_code=404, detail="Artifact not found")
+    return art
+
+
+@router.post("/{session_id}/artifacts", response_model=Artifact)
+def add_artifact(
+    session_id: str, payload: dict, storage: Storage = Depends(get_storage)
+) -> Artifact:
+    session = storage.get_chat(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    data = dict(payload or {})
+    if not data.get("id"):
+        data["id"] = str(uuid.uuid4())
+    art = Artifact(**data)
+    storage.add_artifact(session_id, art)
     return art
