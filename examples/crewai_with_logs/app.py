@@ -1,15 +1,10 @@
 from dotenv import load_dotenv
-from crewai import Agent, Task, Crew, TaskOutput
-from crewai.agents.parser import AgentAction, AgentFinish
+from crewai import Agent, Task, Crew
 from typing import Type
 from crewai.tools import BaseTool
-from crewai.tools.tool_types import ToolResult
 from pydantic import BaseModel, Field
 from langchain_community.tools import DuckDuckGoSearchResults
-from unified_agent_interface.frameworks.utils import (
-    post_log,
-    request_human_input,
-)
+from unified_agent_interface.utils import patch_log
 
 load_dotenv()
 
@@ -20,36 +15,36 @@ class MyCustomDuckDuckGoToolInput(BaseModel):
     query: str = Field(..., description="URL to search for.")
 
 
-def step_callback(output: AgentAction | AgentFinish | ToolResult) -> None:
-    # Mirror to server logs and optionally ask for human input
-    try:
-        post_log(None, "DEBUG", f"step: {repr(output)}")
-    except Exception:
-        pass
-    text = str(getattr(output, "log", None) or output)
-    if "human" in text.lower() or "check with a human" in text.lower():
-        # Demonstrate prompting for human input mid-run (optional heuristic)
-        msg, _ = request_human_input(
-            None, prompt="Agent requested human input. Provide guidance:"
-        )
-        if msg:
-            post_log(None, "INFO", f"human_input: {msg}")
+# def step_callback(output: AgentAction | AgentFinish | ToolResult) -> None:
+#     # Mirror to server logs and optionally ask for human input
+#     try:
+#         post_log(None, "DEBUG", f"step: {repr(output)}")
+#     except Exception:
+#         pass
+#     text = str(getattr(output, "log", None) or output)
+#     if "human" in text.lower() or "check with a human" in text.lower():
+#         # Demonstrate prompting for human input mid-run (optional heuristic)
+#         msg, _ = request_human_input(
+#             None, prompt="Agent requested human input. Provide guidance:"
+#         )
+#         if msg:
+#             post_log(None, "INFO", f"human_input: {msg}")
 
 
-def task_callback(output: TaskOutput) -> None:
-    # Log task completion and optionally require final human approval
-    summary = f"Task completed desc={output.description!r} by={output.agent}"
-    try:
-        post_log(None, "INFO", summary)
-    except Exception:
-        pass
-    # If the description suggests human approval, prompt here
-    if "check with a human" in (output.description or "").lower():
-        msg, _ = request_human_input(
-            None, prompt="Approve the task output? Type feedback or 'ok':"
-        )
-        if msg:
-            post_log(None, "INFO", f"human_approval: {msg}")
+# def task_callback(output: TaskOutput) -> None:
+#     # Log task completion and optionally require final human approval
+#     summary = f"Task completed desc={output.description!r} by={output.agent}"
+#     try:
+#         post_log(None, "INFO", summary)
+#     except Exception:
+#         pass
+#     # If the description suggests human approval, prompt here
+#     if "check with a human" in (output.description or "").lower():
+#         msg, _ = request_human_input(
+#             None, prompt="Approve the task output? Type feedback or 'ok':"
+#         )
+#         if msg:
+#             post_log(None, "INFO", f"human_approval: {msg}")
 
 
 class MyCustomDuckDuckGoTool(BaseTool):
@@ -63,7 +58,10 @@ class MyCustomDuckDuckGoTool(BaseTool):
         return response
 
 
+patch_log(MyCustomDuckDuckGoTool._run, label="crewai", capture_return=True)
+
 search_tool = MyCustomDuckDuckGoTool()
+
 
 # Define your agents with roles, goals, tools, and additional attributes
 researcher = Agent(
@@ -122,8 +120,8 @@ crew = Crew(
     verbose=True,
     memory=True,
     planning=True,  # Enable planning feature for the crew
-    step_callback=step_callback,
-    task_callback=task_callback,
+    # step_callback=step_callback,
+    # task_callback=task_callback,
 )
 
 # # Get your crew to work!

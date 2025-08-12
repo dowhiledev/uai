@@ -36,17 +36,31 @@ def _resolve_owner_attr_from_str(path: str) -> Tuple[Any, str, Callable[..., Any
 
 
 def _resolve_owner_attr_from_callable(fn: Callable[..., Any]) -> Tuple[Any, str]:
+    """Resolve owner and attribute name for a callable without re-importing its module.
+
+    This avoids ambiguity with short module names (e.g., many examples use module name 'app').
+    """
+    import sys
+
     mod_name = getattr(fn, "__module__", None)
     qualname = getattr(fn, "__qualname__", getattr(fn, "__name__", None))
     if not mod_name or not qualname:
         raise ValueError("Cannot resolve owner for callable; pass 'module:attr' string")
-    mod = importlib.import_module(mod_name)
-    # Walk qualname to find owner and attribute
+
+    # Start from the live module object if available; otherwise, use function globals
+    owner: Any = sys.modules.get(mod_name) or getattr(fn, "__globals__", {})
     parts = qualname.split(".")
-    # For nested functions/methods, owner is module or class
-    owner: Any = mod
     for p in parts[:-1]:
-        owner = getattr(owner, p)
+        try:
+            owner = getattr(owner, p)
+        except Exception:
+            # Fallback if owner is a dict-like globals mapping during import time
+            if isinstance(owner, dict) and p in owner:
+                owner = owner[p]
+            else:
+                raise AttributeError(
+                    f"Cannot resolve owner '{p}' for callable with qualname '{qualname}'"
+                )
     return owner, parts[-1]
 
 
