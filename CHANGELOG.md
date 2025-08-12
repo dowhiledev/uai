@@ -22,5 +22,5 @@ The format is based on Keep a Changelog and this project adheres to Semantic Ver
 - Initial release with FastAPI service, run queue (inline/Procrastinate), and CrewAI + callable runtimes.
 - Examples for callable, CrewAI, and human-in-the-loop CrewAI.
 
-[0.1.1]: https://github.com/your-org/unified-agent-interface/releases/tag/0.1.1
-[0.1.0]: https://github.com/your-org/unified-agent-interface/releases/tag/0.1.0
+[0.1.1]: https://github.com/dowhiledev/uai/releases/tag/0.1.1
+[0.1.0]: https://github.com/dowhiledev/uai/releases/tag/0.1.0
