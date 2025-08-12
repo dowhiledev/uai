@@ -29,6 +29,10 @@ Project Structure
 - `src/unified_agent_interface/queue.py`: Procrastinate integration and job dispatch.
 - `examples/`: Callable sample and CrewAI examples (with and without human input).
 
+Changelog
+---------
+- See `CHANGELOG.md` for release notes.
+
 Agent Configuration
 -------------------
 - Location search order: `KOSMOS_TOML` env var, `./kosmos.toml`, `./examples/kosmos.toml`.
