@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from typing import Any, Dict, Tuple
+from unified_agent_interface.frameworks.base import RuntimeAdapter
 
 
-class MyCustomAdapter:
+class MyCustomAdapter(RuntimeAdapter):
     """A minimal custom adapter demonstrating the RuntimeAdapter protocol.
 
     - Implements run: echoes inputs without needing the entrypoint.
