@@ -11,6 +11,7 @@ from typing import Any, Optional, Tuple
 class AgentConfig:
     runtime: str
     entrypoint: str
+    adapter: Optional[str]
     raw: dict
     base_dir: str
 
@@ -54,11 +55,13 @@ def load_kosmos_agent_config(path: Optional[str] = None) -> AgentConfig:
     agent_section = data.get('agent') or {}
     runtime = agent_section.get('runtime')
     entrypoint = agent_section.get('entrypoint')
+    adapter = agent_section.get('adapter') or agent_section.get('adopter')
     if not runtime or not entrypoint:
         raise ValueError('agent.runtime and agent.entrypoint must be set in kosmos.toml')
     return AgentConfig(
         runtime=str(runtime),
         entrypoint=str(entrypoint),
+        adapter=str(adapter) if adapter else None,
         raw=agent_section,
         base_dir=str(chosen.parent.resolve()),
     )

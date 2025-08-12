@@ -42,6 +42,7 @@ def get_procrastinate_app():  # pragma: no cover - thin wrapper
         initial_input: Optional[Any],
         runtime: str,
         entrypoint: str,
+        adapter_path: Optional[str] = None,
         config_dir: Optional[str] = None,
         **kwargs,
     ) -> None:
@@ -63,7 +64,7 @@ def get_procrastinate_app():  # pragma: no cover - thin wrapper
                 pass
 
             obj, _, _ = import_entrypoint(entrypoint, base_dir=config_dir)
-            adapter = get_adapter(runtime)
+            adapter = get_adapter(runtime, adapter_path=adapter_path, base_dir=config_dir)
             result_text = adapter.execute(obj, task_id=task_id, initial_payload=initial_input, config_dir=config_dir)
         except Exception as e:  # pragma: no cover - integration error path
             import traceback as _tb
@@ -105,6 +106,7 @@ def enqueue_run_execute(
     runtime = cfg.runtime
     entrypoint = cfg.entrypoint
     config_dir = cfg.base_dir
+    adapter_path = getattr(cfg, "adapter", None) or cfg.raw.get("adapter") or cfg.raw.get("adopter")
 
     if os.getenv("UAI_PROCRASTINATE_INLINE") == "1":
         # Inline execution in current process: run logic here and call completion callback
@@ -112,7 +114,7 @@ def enqueue_run_execute(
         result_text: Optional[str] = None
         try:
             obj, _, _ = import_entrypoint(entrypoint, base_dir=config_dir)
-            adapter = get_adapter(runtime)
+            adapter = get_adapter(runtime, adapter_path=adapter_path, base_dir=config_dir)
             result_text = adapter.execute(obj, task_id=task_id, initial_payload=initial_payload, config_dir=config_dir)
         except Exception as e:
             status = "failed"
@@ -144,6 +146,7 @@ def enqueue_run_execute(
             initial_input=initial_payload,
             runtime=runtime,
             entrypoint=entrypoint,
+            adapter_path=adapter_path,
             config_dir=config_dir,
         )
     return str(job_id)

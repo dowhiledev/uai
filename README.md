@@ -36,11 +36,14 @@ Agent Configuration
 
   ```toml
   [agent]
-  runtime = "callable"  # or "crewai"
+  runtime = "callable"  # or "crewai", "langchain", or "custom"
   entrypoint = "examples.simple_entrypoint:run"
+  # Optional: for custom adapters
+  # adapter = "path.to.module:AdapterClassOrInstance"
   ```
 
 - Entrypoint format: `module:attr` (e.g., `examples.crewai_user_input.main:crew`). UAI resolves imports relative to the `kosmos.toml` directory and also supports package-style modules.
+- Custom adapters: set `agent.adapter` to a `module:attr` that resolves to either an instance or a zero-arg class. The adapter must explicitly inherit `unified_agent_interface.frameworks.base.RuntimeAdapter`. If `runtime` is unknown or set to `custom`, UAI will load this adapter. If both a known runtime and an adapter are specified, the adapter takes precedence.
 
 Runtimes (Adapters)
 -------------------
@@ -52,6 +55,7 @@ Runtimes (Adapters)
   - Output: tries `message.content`, then common dict keys (`text`, `output_text`, `output`, `result`), else `str(result)`.
 - `callable`: Imports a Python callable.
   - If `--input` is a JSON object, UAI tries `fn(**obj)`, falling back to `fn(obj)`; otherwise it calls `fn({"input": "...", "params": {}})`.
+ - `custom`: Provide `adapter = "module:attr"` in `kosmos.toml`; UAI imports and uses it for both run and chat if implemented.
 
 Examples
 --------
