@@ -56,7 +56,7 @@ writing_task = Task(
     description="Write a blog post based on the research summary.",
     expected_output="A well-structured tech blog post.",
     agent=writer,
-    output_file="blog_post.md"
+    output_file="blog_post.md",
 )
 
 # Define Crew
