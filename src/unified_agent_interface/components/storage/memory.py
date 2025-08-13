@@ -52,6 +52,9 @@ class InMemoryStorage:
             if art.id == artifact_id:
                 return art
         return None
+    
+    def list_chats(self) -> List[ChatSession]:
+        return list(self._chats.values())
 
     # Runs
     def create_run(self, initial_input: Optional[object], params: dict) -> RunTask:
@@ -100,3 +103,6 @@ class InMemoryStorage:
             if art.id == artifact_id:
                 return art
         return None
+
+    def list_runs(self) -> List[RunTask]:
+        return list(self._runs.values())

@@ -9,6 +9,15 @@ def cli() -> None:  # pragma: no cover
     import typing as t
     import typer
     import uvicorn
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+    from rich.pretty import Pretty
+    from datetime import datetime
+    from contextlib import nullcontext
+
+    console = Console()
+    JSON_OUTPUT = False
 
     app = typer.Typer(help="Unified Agent Interface (UAI) CLI")
 
@@ -21,6 +30,17 @@ def cli() -> None:  # pragma: no cover
                 load_dotenv(env_path)
         except Exception:
             pass
+
+    @app.callback()
+    def main(
+        json_output: bool = typer.Option(
+            False,
+            "--json",
+            help="Emit machine-readable JSON instead of rich UI",
+        )
+    ) -> None:
+        nonlocal JSON_OUTPUT
+        JSON_OUTPUT = json_output
 
     @app.command()
     def serve(
@@ -41,20 +61,25 @@ def cli() -> None:  # pragma: no cover
     def _http_post(url: str, path: str, json_body: dict) -> dict:
         import httpx  # lazy import
 
-        r = httpx.post(url.rstrip("/") + path, json=json_body, timeout=60)
-        r.raise_for_status()
-        return r.json() if r.text else {}
+        with console.status("Working...") if not JSON_OUTPUT else nullcontext():
+            r = httpx.post(url.rstrip("/") + path, json=json_body, timeout=60)
+            r.raise_for_status()
+            return r.json() if r.text else {}
 
     def _http_get(url: str, path: str) -> dict:
         import httpx  # lazy import
 
-        r = httpx.get(url.rstrip("/") + path, timeout=60)
-        r.raise_for_status()
-        return r.json() if r.text else {}
+        with console.status("Working...") if not JSON_OUTPUT else nullcontext():
+            r = httpx.get(url.rstrip("/") + path, timeout=60)
+            r.raise_for_status()
+            return r.json() if r.text else {}
 
-    def _print(data: t.Any) -> None:
+    def _print(data: t.Any, title: str | None = None) -> None:
         try:
-            typer.echo(json.dumps(data, indent=2, ensure_ascii=False))
+            if JSON_OUTPUT:
+                typer.echo(json.dumps(data, ensure_ascii=False))
+            else:
+                console.print(Panel(Pretty(data, indent_guides=True), title=title))
         except Exception:
             typer.echo(str(data))
 
@@ -88,7 +113,7 @@ def cli() -> None:  # pragma: no cover
         payload = {"input": parsed_input, "params": params or None}
         _load_dotenv_if_present()
         data = _http_post(url, "/run/", payload)
-        _print(data)
+        _print(data, title="Run Created")
 
     @run_app.command("status")
     def run_status(
@@ -99,7 +124,17 @@ def cli() -> None:  # pragma: no cover
     ) -> None:
         _load_dotenv_if_present()
         data = _http_get(url, f"/run/{task_id}")
-        _print(data)
+        # Present a compact panel
+        info = {
+            "id": data.get("id"),
+            "status": data.get("status"),
+            "created_at": data.get("created_at"),
+            "eta": data.get("estimated_completion_time"),
+            "inputs": len(data.get("input_buffer") or []),
+            "artifacts": len(data.get("artifacts") or []),
+            "logs": len(data.get("logs") or []),
+        }
+        _print(info, title="Run Status")
 
     @run_app.command("input")
     def run_input(
@@ -111,7 +146,7 @@ def cli() -> None:  # pragma: no cover
     ) -> None:
         _load_dotenv_if_present()
         data = _http_post(url, f"/run/{task_id}/input", {"input": text})
-        _print(data)
+        _print(data, title="Input Sent")
 
     @run_app.command("logs")
     def run_logs(
@@ -126,7 +161,7 @@ def cli() -> None:  # pragma: no cover
         data = _http_post(
             url, f"/run/{task_id}/logs", {"level": level, "message": message}
         )
-        _print(data)
+        _print(data, title="Log Added")
 
     @run_app.command("cancel")
     def run_cancel(
@@ -141,7 +176,7 @@ def cli() -> None:  # pragma: no cover
 
         r = _httpx.delete(url.rstrip("/") + f"/run/{task_id}", timeout=30)
         r.raise_for_status()
-        _print(r.json() if r.text else {"ok": True})
+        _print(r.json() if r.text else {"ok": True}, title="Run Cancelled")
 
     @run_app.command("stop")
     def run_stop(
@@ -168,48 +203,123 @@ def cli() -> None:  # pragma: no cover
     ) -> None:
         """Watch a run, prompting for input when required, until completion."""
         import time as _time
+        from contextlib import nullcontext
 
         _load_dotenv_if_present()
         prev_status = None
-        prev_len = None
+        prev_input_len = None
+        prev_log_len = 0
         try:
             while True:
                 data = _http_get(url, f"/run/{task_id}")
                 status = data.get("status")
                 ibuf = data.get("input_buffer") or []
                 prompt = data.get("input_prompt") or None
+                logs = data.get("logs") or []
 
                 if verbose and (
                     status != prev_status
                     or (
                         isinstance(ibuf, list)
-                        and prev_len is not None
-                        and len(ibuf) != prev_len
+                        and prev_input_len is not None
+                        and len(ibuf) != prev_input_len
                     )
                 ):
-                    typer.echo(
-                        f"status={status} inputs={len(ibuf) if isinstance(ibuf, list) else 0}"
-                    )
+                    if JSON_OUTPUT:
+                        typer.echo(json.dumps({"event": "status", "status": status, "inputs": len(ibuf) if isinstance(ibuf, list) else 0}))
+                    else:
+                        console.print(
+                            f"[bold]status[/bold]=[cyan]{status}[/cyan] inputs=[magenta]{len(ibuf) if isinstance(ibuf, list) else 0}[/magenta]"
+                        )
                     if prompt and status == "waiting_input":
-                        typer.echo(f"input_prompt: {prompt}")
+                        if JSON_OUTPUT:
+                            typer.echo(json.dumps({"event": "prompt", "prompt": prompt}))
+                        else:
+                            console.print(f"[yellow]input_prompt[/yellow]: {prompt}")
                 prev_status = status
-                prev_len = len(ibuf) if isinstance(ibuf, list) else prev_len
+                prev_input_len = len(ibuf) if isinstance(ibuf, list) else prev_input_len
+
+                # Stream new logs as they arrive
+                if isinstance(logs, list) and len(logs) > prev_log_len:
+                    new_logs = logs[prev_log_len:]
+                    for entry in new_logs:
+                        level = (entry.get("level") or "INFO").upper()
+                        ts = entry.get("timestamp")
+                        msg = entry.get("message")
+                        if JSON_OUTPUT:
+                            typer.echo(json.dumps({"event": "log", "level": level, "timestamp": ts, "message": msg}))
+                        else:
+                            style = {
+                                "DEBUG": "dim",
+                                "INFO": "cyan",
+                                "WARNING": "yellow",
+                                "WARN": "yellow",
+                                "ERROR": "red",
+                                "CRITICAL": "bold red",
+                            }.get(level, "white")
+                            console.print(f"[{style}]{level:7}[/] {ts} {msg}")
+                    prev_log_len = len(logs)
 
                 if status in ("completed", "failed", "cancelled"):
-                    _print(data)
+                    if JSON_OUTPUT:
+                        _print(data)
+                    else:
+                        # Show final result if present
+                        result = data.get("result_text")
+                        if result:
+                            console.rule("Result")
+                            console.print(result)
+                        _print({
+                            "id": data.get("id"),
+                            "status": status,
+                            "artifacts": len(data.get("artifacts") or []),
+                            "logs": len(data.get("logs") or []),
+                        }, title="Run Finished")
                     break
                 if status == "waiting_input":
                     ask = prompt or "Awaiting human input..."
                     text = typer.prompt(ask)
                     if text.strip() == "":
-                        typer.echo("Empty input, not sending. Press Ctrl+C to exit.")
+                        if not JSON_OUTPUT:
+                            typer.echo("Empty input, not sending. Press Ctrl+C to exit.")
                     else:
                         _http_post(url, f"/run/{task_id}/input", {"input": text})
                     # Continue immediately to re-check status
                     continue
                 _time.sleep(max(0.1, interval))
         except KeyboardInterrupt:
-            typer.echo("Interrupted")
+            if not JSON_OUTPUT:
+                console.print("[yellow]Interrupted[/yellow]")
+
+    @run_app.command("list")
+    def run_list(
+        url: str = typer.Option(
+            "http://localhost:8000", "--url", help="Base server URL"
+        ),
+    ) -> None:
+        """List all runs."""
+        runs = _http_get(url, "/run/")
+        table = Table(title="Runs", show_lines=False)
+        table.add_column("ID", overflow="fold")
+        table.add_column("Status")
+        table.add_column("Created")
+        table.add_column("ETA")
+        table.add_column("Inputs", justify="right")
+        table.add_column("Artifacts", justify="right")
+        table.add_column("Logs", justify="right")
+        for r in runs or []:
+            created = r.get("created_at")
+            eta = r.get("estimated_completion_time")
+            table.add_row(
+                r.get("id", ""),
+                r.get("status", ""),
+                str(created) if created else "",
+                str(eta) if eta else "",
+                str(len(r.get("input_buffer") or [])),
+                str(len(r.get("artifacts") or [])),
+                str(len(r.get("logs") or [])),
+            )
+        console.print(table)
 
     @chat_app.command("create")
     def chat_create(
@@ -219,7 +329,7 @@ def cli() -> None:  # pragma: no cover
     ) -> None:
         _load_dotenv_if_present()
         data = _http_post(url, "/chat/", {})
-        _print(data)
+        _print(data, title="Chat Created")
 
     @chat_app.command("send")
     def chat_send(
@@ -231,7 +341,7 @@ def cli() -> None:  # pragma: no cover
     ) -> None:
         _load_dotenv_if_present()
         data = _http_post(url, f"/chat/{session_id}", {"user_input": text})
-        _print(data)
+        _print(data, title="Message Sent")
 
     @chat_app.command("messages")
     def chat_messages(
@@ -242,7 +352,44 @@ def cli() -> None:  # pragma: no cover
     ) -> None:
         _load_dotenv_if_present()
         data = _http_get(url, f"/chat/{session_id}/messages")
-        _print(data)
+        table = Table(title=f"Messages ({session_id})", show_lines=False)
+        table.add_column("ID", overflow="fold")
+        table.add_column("Role")
+        table.add_column("Created")
+        table.add_column("Content")
+        for m in data or []:
+            table.add_row(
+                m.get("id") or "",
+                m.get("role", ""),
+                str(m.get("created_at") or ""),
+                m.get("content", ""),
+            )
+        console.print(table)
+
+    @chat_app.command("list")
+    def chat_list(
+        url: str = typer.Option(
+            "http://localhost:8000", "--url", help="Base server URL"
+        ),
+    ) -> None:
+        """List all chat sessions."""
+        chats = _http_get(url, "/chat/")
+        if JSON_OUTPUT:
+            _print(chats)
+        else:
+            table = Table(title="Chat Sessions", show_lines=False)
+            table.add_column("ID", overflow="fold")
+            table.add_column("Created")
+            table.add_column("Messages", justify="right")
+            table.add_column("Artifacts", justify="right")
+            for c in chats or []:
+                table.add_row(
+                    c.get("id", ""),
+                    str(c.get("created_at") or ""),
+                    str(len(c.get("messages") or [])),
+                    str(len(c.get("artifacts") or [])),
+                )
+            console.print(table)
 
     app.add_typer(run_app, name="run")
     app.add_typer(chat_app, name="chat")

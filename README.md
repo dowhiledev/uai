@@ -13,12 +13,15 @@ CLI Overview
 ------------
 - `uai serve`: starts the FastAPI server.
 - `uai run create --input '<json or string>'`: creates a run for the configured agent.
+- `uai run list`: lists all runs with status and counts.
 - `uai run status <task_id>`: fetches current run status.
 - `uai run input <task_id> --text '<reply>'`: provides human input to a waiting run.
 - `uai run logs <task_id> --message '<msg>' [--level INFO]`: appends a log entry.
 - `uai run cancel <task_id>` / `uai run stop <task_id>`: cancels/stops a run (deletes it from in-memory storage).
 - `uai worker install|check|start`: installs schema, checks DB, and starts the worker.
- - `uai run watch <task_id>`: watches status; when `waiting_input`, prompts for input and resumes automatically.
+- `uai run watch <task_id>`: watches status; when `waiting_input`, prompts for input and resumes automatically.
+- `uai chat list`: lists chat sessions and message counts.
+ - Global: add `--json` to any command to output machine-readable JSON (disables rich UI). For `run watch`, JSON mode emits events and final status as JSON lines.
 
 Project Structure
 -----------------
@@ -73,6 +76,7 @@ Examples
 
 Run API
 -------
+- `GET /run/`: lists runs (status snapshot).
 - `POST /run/` (body: `{ "input": <any>, "params": <object?> }`): creates a run. `input` may be a string or JSON object/array.
 - `GET /run/{id}`: returns status with fields: `status`, `result_text`, `logs`, `artifacts`, `input_prompt`, `input_buffer`.
 - `POST /run/{id}/input` (body: `{ "input": "..." }`): appends to `input_buffer` and resumes a waiting run.
@@ -82,6 +86,12 @@ Run API
 
 Chat API
 --------
+- `GET /chat/`: lists chat sessions.
+
+Watch Streaming
+---------------
+- `uai run watch <task_id>` now streams logs as they arrive and shows the final result on completion.
+- JSON mode (`--json`) prints JSON lines for events: `status`, `prompt`, `log`, then a final object with the full run status.
 - `POST /chat/`: creates a chat session and returns `{ session_id }`.
 - `POST /chat/{session_id}`: sends a user message; responds after generating the assistant reply with `{ state, artifacts, messages }`.
 - `GET /chat/{session_id}/messages`: lists messages in the session.

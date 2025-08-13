@@ -8,6 +8,7 @@ from ..components.agents.chat_configured import ConfiguredChatAgent
 from ..components.storage.base import Storage
 from ..models.chat import (
     Artifact,
+    ChatSession,
     CreateChatResponse,
     Message,
     NextRequest,
@@ -29,6 +30,11 @@ def get_agent(req: Request) -> Agent:
     if agent is None:
         raise HTTPException(status_code=501, detail="Chat agent not configured")
     return agent
+
+
+@router.get("/", response_model=List[ChatSession])
+def list_chats(storage: Storage = Depends(get_storage)) -> List[ChatSession]:
+    return storage.list_chats()
 
 
 @router.post("/next", response_model=NextResponse)

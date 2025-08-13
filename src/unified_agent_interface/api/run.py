@@ -20,6 +20,12 @@ def get_storage(req: Request) -> Storage:
     return req.app.state.storage
 
 
+@router.get("/", response_model=List[RunStatusResponse])
+def list_runs(storage: Storage = Depends(get_storage)) -> List[RunStatusResponse]:
+    tasks = storage.list_runs()
+    return [RunStatusResponse(**t.model_dump()) for t in tasks]
+
+
 @router.post("/", response_model=CreateRunResponse)
 def create_run(
     payload: CreateRunRequest | None = None,
