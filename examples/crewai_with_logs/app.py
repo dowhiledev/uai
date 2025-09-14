@@ -4,7 +4,7 @@ from typing import Type
 from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
 from langchain_community.tools import DuckDuckGoSearchResults
-from unified_agent_interface.utils import patch_log
+from unified_agent_interface.utils import patch_log as capture
 
 load_dotenv()
 
@@ -58,7 +58,8 @@ class MyCustomDuckDuckGoTool(BaseTool):
         return response
 
 
-patch_log(MyCustomDuckDuckGoTool._run, label="crewai", capture_return=True)
+capture(MyCustomDuckDuckGoTool._run, label="crewai", capture_return=True)
+capture(Agent.execute_task, label="crewai", capture_return=True)
 
 search_tool = MyCustomDuckDuckGoTool()
 
